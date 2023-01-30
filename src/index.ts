@@ -1,4 +1,4 @@
-import { Graph } from "graphlib";
+import graphlib from "graphlib";
 import drawLayeredGraph from "./draw-layered-graph";
 
-export default { graphLib: Graph, drawLayeredGraph };
+export default { graphlib, drawLayeredGraph };
