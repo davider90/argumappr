@@ -52,11 +52,14 @@ describe("Cycle Handling", () => {
       graph.setNode("a");
       graph.setNode("b");
       graph.setNode("c");
-      graph.setEdge("a", "b");
-      graph.setEdge("b", "c");
-      graph.setEdge("c", "a");
 
-      reverseEdges(graph, graph.edges(), ["a", "b"], ["c"]);
+      const oldEdges = [
+        { v: "a", w: "b" },
+        { v: "b", w: "c" },
+        { v: "c", w: "a" },
+      ];
+
+      reverseEdges(graph, oldEdges, ["a", "b"], ["c"]);
 
       const expectedEdges = [
         { v: "a", w: "b" },
