@@ -4,7 +4,7 @@
   "description": "This is the master project repository",
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "types": "./lib/cjs/types/index.d.ts",
   "main": "./lib/cjs/index.js",
   "scripts": {
