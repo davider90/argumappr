@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "This is the master project repository",
   "keywords": [],
-  "author": "",
+  "author": "David Ferenc Bendiksen <davidbendiksen@hotmail.com>",
   "license": "MIT",
   "types": "./lib/cjs/types/index.d.ts",
   "main": "./lib/cjs/index.js",
