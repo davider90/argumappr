@@ -5,9 +5,9 @@ const { read, write } = json;
 export default function removeCycles(graph: Graph) {
   const graphCopy = read(write(graph));
   const { sources, sinks } = greedilyGetFS(graphCopy);
-  const originalEdges = reverseEdges(graph, sources, sinks);
+  const modifiedEdges = handleEdges(graph, sources, sinks);
 
-  return originalEdges;
+  return modifiedEdges;
 }
 
 export function greedilyGetFS(graph: Graph) {
@@ -57,21 +57,51 @@ export function getMaxNode(graph: Graph) {
   return maxNode.nodeId;
 }
 
-export function reverseEdges(graph: Graph, sources: string[], sinks: string[]) {
-  const originalEdges: Edge[] = [];
+export function handleEdges(graph: Graph, sources: string[], sinks: string[]) {
+  const deletedLoops: Edge[] = [];
+  const reversedEdges: Edge[] = [];
 
-  graph.edges().forEach((edge) => {
-    const { v, w } = edge;
-
-    if (sources.includes(v) && sinks.includes(w)) {
-      const edgeValue = graph.edge(edge);
-      const reversedEdge = { ...edge, v: w, w: v };
-
-      graph.removeEdge(edge);
-      originalEdges.push(edge);
-      graph.setEdge(reversedEdge, edgeValue);
+  for (const edge of graph.edges()) {
+    const deletedLoop = deleteLoop(graph, edge);
+    if (!!deletedLoop) {
+      deletedLoops.push(deletedLoop);
+      continue;
     }
-  });
 
-  return originalEdges;
+    const reversedEdge = reverseEdge(graph, sources, sinks, edge);
+    if (!!reversedEdge) reversedEdges.push(reversedEdge);
+  }
+
+  return { deletedLoops, reversedEdges };
+}
+
+export function deleteLoop(graph: Graph, edge: Edge) {
+  const { v, w } = edge;
+
+  if (v === w) {
+    const edgeValue = graph.edge(edge);
+    const originalEdge = { ...edge, value: edgeValue };
+
+    graph.removeEdge(edge);
+    return originalEdge;
+  }
+}
+
+export function reverseEdge(
+  graph: Graph,
+  sources: string[],
+  sinks: string[],
+  edge: Edge
+) {
+  const { v, w } = edge;
+
+  if (sources.includes(v) && sinks.includes(w)) {
+    const edgeValue = graph.edge(edge);
+    const originalEdge = { ...edge, value: edgeValue };
+    const reversedEdge = { ...edge, v: w, w: v };
+
+    graph.removeEdge(edge);
+    graph.setEdge(reversedEdge, edgeValue);
+    return originalEdge;
+  }
 }

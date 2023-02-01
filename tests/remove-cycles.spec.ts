@@ -6,27 +6,115 @@ import { alg, Graph } from "graphlib";
 import removeCycles, {
   getMaxNode,
   greedilyGetFS,
-  reverseEdges,
+  handleEdges,
+  deleteLoop,
+  reverseEdge,
 } from "../src/remove-cycles";
 
 describe("Cycle Handling", () => {
   describe("Edge Reversal", () => {
     it("should be a function", () => {
-      assert.isFunction(reverseEdges);
+      assert.isFunction(reverseEdge);
     });
 
-    it("should return an array of edges", () => {
+    it("should return the original edge when reversing", () => {
       const graph = new Graph();
-      const returnValue = reverseEdges(graph, [], []);
 
-      assert.isArray(returnValue);
+      graph.setNode("a");
+      graph.setNode("b");
+      graph.setEdge("a", "b");
+
+      const edge = graph.edges()[0];
+      let returnValue = reverseEdge(graph, ["a", "b"], [], edge);
+
+      assert.isUndefined(returnValue);
+
+      returnValue = reverseEdge(graph, ["a"], ["b"], edge);
+      const expectedValue = { ...edge, value: undefined };
+
+      assert.deepEqual(returnValue, expectedValue);
     });
 
-    it("should return the original edges that were reversed", () => {
+    it("should reverse an edge from sources to sinks", () => {
       const graph = new Graph();
-      let returnValue = reverseEdges(graph, [], []);
 
-      assert.isEmpty(returnValue);
+      graph.setNode("a");
+      graph.setNode("b");
+      graph.setEdge("a", "b");
+
+      const edge = graph.edges()[0];
+
+      reverseEdge(graph, ["a"], ["b"], edge);
+
+      const expectedEdge = { v: "b", w: "a", value: undefined };
+      const actualEdge = { ...graph.edges()[0], value: undefined };
+
+      assert.deepEqual(actualEdge, expectedEdge);
+    });
+  });
+
+  describe("Loop Deletion", () => {
+    it("should be a function", () => {
+      assert.isFunction(deleteLoop);
+    });
+
+    it("should return the loop when deleting", () => {
+      const graph = new Graph();
+
+      graph.setNode("a");
+      graph.setNode("b");
+      graph.setEdge("a", "b");
+
+      let edge = graph.edges()[0];
+      let returnValue = deleteLoop(graph, edge);
+
+      assert.isUndefined(returnValue);
+
+      graph.setEdge("a", "a");
+
+      edge = graph.inEdges("a")![0];
+      returnValue = deleteLoop(graph, edge);
+      const expectedValue = { ...edge, value: undefined };
+
+      assert.deepEqual(returnValue, expectedValue);
+    });
+
+    it("should delete a loop", () => {
+      const graph = new Graph();
+
+      graph.setNode("a");
+      graph.setEdge("a", "a");
+
+      const edge = graph.edges()[0];
+
+      deleteLoop(graph, edge);
+
+      assert.isEmpty(graph.edges());
+    });
+  });
+
+  describe("Edge Handling", () => {
+    it("should be a function", () => {
+      assert.isFunction(handleEdges);
+    });
+
+    it("should return an object of modified edges", () => {
+      const graph = new Graph();
+      const returnValue = handleEdges(graph, [], []);
+
+      assert.isObject(returnValue);
+      assert.property(returnValue, "deletedLoops");
+      assert.property(returnValue, "reversedEdges");
+      assert.isArray(returnValue.deletedLoops);
+      assert.isArray(returnValue.reversedEdges);
+    });
+
+    it("should return the original edges that were modified", () => {
+      const graph = new Graph();
+      let returnValue = handleEdges(graph, [], []);
+
+      assert.isEmpty(returnValue.deletedLoops);
+      assert.isEmpty(returnValue.reversedEdges);
 
       graph.setNode("a");
       graph.setNode("b");
@@ -35,28 +123,35 @@ describe("Cycle Handling", () => {
       graph.setEdge("b", "c");
       graph.setEdge("c", "a");
 
-      returnValue = reverseEdges(graph, [], []);
+      returnValue = handleEdges(graph, [], []);
 
-      assert.isEmpty(returnValue);
+      assert.isEmpty(returnValue.deletedLoops);
+      assert.isEmpty(returnValue.reversedEdges);
 
-      returnValue = reverseEdges(graph, ["a"], ["b", "c"]);
-      const expectedEdge = { v: "a", w: "b" };
+      graph.setEdge("a", "a");
 
-      assert.lengthOf(returnValue, 1);
-      assert.sameDeepMembers(returnValue, [expectedEdge]);
+      returnValue = handleEdges(graph, ["a"], ["b", "c"]);
+      const expectedEdge = { v: "a", w: "b", value: undefined };
+      const expectedLoop = { v: "a", w: "a", value: undefined };
+
+      assert.lengthOf(returnValue.reversedEdges, 1);
+      assert.sameDeepMembers(returnValue.reversedEdges, [expectedEdge]);
+      assert.lengthOf(returnValue.deletedLoops, 1);
+      assert.sameDeepMembers(returnValue.deletedLoops, [expectedLoop]);
     });
 
-    it("should reverse edges from sources to sinks", () => {
+    it("should reverse appropriate edges and delete loops", () => {
       const graph = new Graph();
 
       graph.setNode("a");
       graph.setNode("b");
       graph.setNode("c");
       graph.setEdge("a", "b");
+      graph.setEdge("a", "a");
       graph.setEdge("b", "c");
       graph.setEdge("c", "a");
 
-      reverseEdges(graph, ["a", "b"], ["c"]);
+      handleEdges(graph, ["a", "b"], ["c"]);
 
       const expectedEdges = [
         { v: "a", w: "b" },
@@ -174,14 +269,14 @@ describe("Cycle Handling", () => {
       assert.isFunction(removeCycles);
     });
 
-    it("should return an array of edges", () => {
+    it("should return an object of modified edges", () => {
       const graph = new Graph();
       const returnValue = removeCycles(graph);
 
-      assert.isArray(returnValue);
+      assert.isObject(returnValue);
     });
 
-    it("should return the original edges that were reversed", () => {
+    it("should return the original edges that were modified", () => {
       const graph = new Graph();
 
       graph.setNode("a");
@@ -191,11 +286,14 @@ describe("Cycle Handling", () => {
       graph.setEdge("b", "c");
       graph.setEdge("c", "a");
 
-      const edges = [...graph.edges()];
+      const edges = graph
+        .edges()
+        .map((edge) => ({ ...edge, value: undefined }));
       const returnValue = removeCycles(graph);
 
-      assert.isNotEmpty(returnValue);
-      assert.includeDeepMembers(edges, returnValue);
+      assert.isNotEmpty(returnValue.reversedEdges);
+      assert.includeDeepMembers(edges, returnValue.reversedEdges);
+      assert.isEmpty(returnValue.deletedLoops);
     });
 
     it("should leave the graph acyclic", () => {
@@ -204,6 +302,7 @@ describe("Cycle Handling", () => {
       graph.setNode("a");
       graph.setNode("b");
       graph.setNode("c");
+      graph.setEdge("a", "a");
       graph.setEdge("a", "b");
       graph.setEdge("b", "c");
       graph.setEdge("c", "a");
