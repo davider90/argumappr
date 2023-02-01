@@ -1,10 +1,11 @@
-import { Edge, Graph } from "graphlib";
+import { Edge, Graph, json } from "graphlib";
+
+const { read, write } = json;
 
 export default function removeCycles(graph: Graph) {
-  const edges = [...graph.edges()];
-  const { sources, sinks } = greedilyGetFS(graph);
-  graph.setNodes([...sources, ...sinks]);
-  const originalEdges = reverseEdges(graph, edges, sources, sinks);
+  const graphCopy = read(write(graph));
+  const { sources, sinks } = greedilyGetFS(graphCopy);
+  const originalEdges = reverseEdges(graph, sources, sinks);
 
   return originalEdges;
 }
@@ -25,15 +26,15 @@ export function greedilyGetFS(graph: Graph) {
     let remainingSources = graph.sources();
     while (remainingSources.length > 0) {
       const source = remainingSources[0];
-      sources.push(source);
       graph.removeNode(source);
+      sources.push(source);
       remainingSources = graph.sources();
     }
 
     if (graph.nodeCount() > 0) {
       const maxNode = getMaxNode(graph);
-      sources.push(maxNode);
       graph.removeNode(maxNode);
+      sources.push(maxNode);
     }
   }
 
@@ -56,21 +57,19 @@ export function getMaxNode(graph: Graph) {
   return maxNode.nodeId;
 }
 
-export function reverseEdges(
-  graph: Graph,
-  edges: Edge[],
-  sources: string[],
-  sinks: string[]
-) {
+export function reverseEdges(graph: Graph, sources: string[], sinks: string[]) {
   const originalEdges: Edge[] = [];
 
-  edges.forEach((edge) => {
+  graph.edges().forEach((edge) => {
     const { v, w } = edge;
+
     if (sources.includes(v) && sinks.includes(w)) {
-      graph.setEdge({ ...edge, v: w, w: v });
+      const edgeValue = graph.edge(edge);
+      const reversedEdge = { ...edge, v: w, w: v };
+
+      graph.removeEdge(edge);
       originalEdges.push(edge);
-    } else {
-      graph.setEdge(edge);
+      graph.setEdge(reversedEdge, edgeValue);
     }
   });
 

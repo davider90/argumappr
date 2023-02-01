@@ -17,14 +17,14 @@ describe("Cycle Handling", () => {
 
     it("should return an array of edges", () => {
       const graph = new Graph();
-      const returnValue = reverseEdges(graph, graph.edges(), [], []);
+      const returnValue = reverseEdges(graph, [], []);
 
       assert.isArray(returnValue);
     });
 
     it("should return the original edges that were reversed", () => {
       const graph = new Graph();
-      let returnValue = reverseEdges(graph, graph.edges(), [], []);
+      let returnValue = reverseEdges(graph, [], []);
 
       assert.isEmpty(returnValue);
 
@@ -35,11 +35,11 @@ describe("Cycle Handling", () => {
       graph.setEdge("b", "c");
       graph.setEdge("c", "a");
 
-      returnValue = reverseEdges(graph, graph.edges(), [], []);
+      returnValue = reverseEdges(graph, [], []);
 
       assert.isEmpty(returnValue);
 
-      returnValue = reverseEdges(graph, graph.edges(), ["a"], ["b", "c"]);
+      returnValue = reverseEdges(graph, ["a"], ["b", "c"]);
       const expectedEdge = { v: "a", w: "b" };
 
       assert.lengthOf(returnValue, 1);
@@ -52,14 +52,11 @@ describe("Cycle Handling", () => {
       graph.setNode("a");
       graph.setNode("b");
       graph.setNode("c");
+      graph.setEdge("a", "b");
+      graph.setEdge("b", "c");
+      graph.setEdge("c", "a");
 
-      const oldEdges = [
-        { v: "a", w: "b" },
-        { v: "b", w: "c" },
-        { v: "c", w: "a" },
-      ];
-
-      reverseEdges(graph, oldEdges, ["a", "b"], ["c"]);
+      reverseEdges(graph, ["a", "b"], ["c"]);
 
       const expectedEdges = [
         { v: "a", w: "b" },
