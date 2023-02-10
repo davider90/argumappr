@@ -2,6 +2,8 @@ import { Edge, Graph, json } from "graphlib";
 
 const { read, write } = json;
 
+type NodeId = string;
+
 export default function removeCycles(graph: Graph) {
   const graphCopy = read(write(graph));
   const { sources, sinks } = greedilyGetFS(graphCopy);
@@ -11,8 +13,8 @@ export default function removeCycles(graph: Graph) {
 }
 
 export function greedilyGetFS(graph: Graph) {
-  const sources: string[] = [];
-  const sinks: string[] = [];
+  const sources: NodeId[] = [];
+  const sinks: NodeId[] = [];
 
   while (graph.nodeCount() > 0) {
     let remainingSinks = graph.sinks();
@@ -57,7 +59,7 @@ export function getMaxNode(graph: Graph) {
   return maxNode.nodeId;
 }
 
-export function handleEdges(graph: Graph, sources: string[], sinks: string[]) {
+export function handleEdges(graph: Graph, sources: NodeId[], sinks: NodeId[]) {
   const deletedLoops: Edge[] = [];
   const reversedEdges: Edge[] = [];
 
@@ -89,8 +91,8 @@ export function deleteLoop(graph: Graph, edge: Edge) {
 
 export function reverseEdge(
   graph: Graph,
-  sources: string[],
-  sinks: string[],
+  sources: NodeId[],
+  sinks: NodeId[],
   edge: Edge
 ) {
   const { v, w } = edge;
