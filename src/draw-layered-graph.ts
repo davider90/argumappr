@@ -9,8 +9,8 @@ function drawLayeredGraph(graph: Graph) {
     throw new Error("Graph must be directed for layered drawing");
   }
 
-  const one = removeCycles(graph);
-  const two = layerNodes(one);
+  const originalEdges = removeCycles(graph);
+  const two = layerNodes(graph);
   const three = minimiseCrossings(two);
   const four = straightenEdges(three);
 

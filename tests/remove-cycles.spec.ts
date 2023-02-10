@@ -227,7 +227,7 @@ describe("Cycle Handling", () => {
 
       assert.isEmpty(returnValue.sources);
       assert.lengthOf(returnValue.sinks, 3);
-      assert.sameDeepMembers(returnValue.sinks, ["a", "b", "c"]);
+      assert.sameMembers(returnValue.sinks, ["a", "b", "c"]);
 
       graph.setNode("a");
       graph.setNode("b");
@@ -243,8 +243,8 @@ describe("Cycle Handling", () => {
 
       assert.lengthOf(returnValue.sources, 2);
       assert.lengthOf(returnValue.sinks, 2);
-      assert.sameDeepMembers(returnValue.sources, ["b", "a"]);
-      assert.sameDeepMembers(returnValue.sinks, ["c", "d"]);
+      assert.sameMembers(returnValue.sources, ["b", "a"]);
+      assert.sameMembers(returnValue.sinks, ["c", "d"]);
     });
 
     it("should leave the graph empty", () => {
