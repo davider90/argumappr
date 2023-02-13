@@ -190,7 +190,7 @@ describe("Cycle Handling", () => {
 
       const returnValue = getMaxNode(graph);
 
-      assert.equal(returnValue, "a");
+      assert.strictEqual(returnValue, "a");
     });
   });
 
