@@ -2,57 +2,151 @@ import { Edge, Graph } from "graphlib";
 import { RankTable } from "./utils";
 
 type NodeId = string;
-type EdgeString = string;
-type Direction = "up" | "down";
 
 export default function layerNodes(graph: Graph) {
-  const { tree: feasibleTree, ranks } = getFeasibleTree(graph);
-  let negativeCutValueEdge = getNegativeCutValueEdge(feasibleTree);
+  const treeAndRanks = getFeasibleTree(graph);
+  const { tree } = treeAndRanks;
+  let { ranks } = treeAndRanks;
+  const negativeEdgeIterator = new NegativeCutValueEdgeIterator(tree);
 
-  while (!!negativeCutValueEdge) {
-    const nontreeMinSlackEdge = getNontreeMinSlackEdge(
-      graph,
-      feasibleTree,
-      negativeCutValueEdge
-    );
+  while (negativeEdgeIterator.hasNext()) {
+    const negativeEdge = negativeEdgeIterator.next()!;
+    const minSlackEdge = getNontreeMinSlackEdge(graph, tree, negativeEdge)!;
 
-    feasibleTree.removeEdge(negativeCutValueEdge);
-    feasibleTree.setEdge(nontreeMinSlackEdge);
-    setCutValue(feasibleTree, ranks, nontreeMinSlackEdge);
-
-    negativeCutValueEdge = getNegativeCutValueEdge(feasibleTree);
+    tree.removeEdge(negativeEdge);
+    tree.setEdge(minSlackEdge);
+    ranks = updateTreeValues(graph, tree, ranks, minSlackEdge);
   }
-  // normalize(tree, ranks);
+  normalize(tree, ranks);
   // balance(graph);
-  return [];
+  return ranks;
+}
+
+export function normalize(tree: Graph, ranks: RankTable) {
+  const smallestRank = ranks.getSmallestRank();
+
+  tree.nodes().forEach((node) => {
+    const rank = ranks.getRankNumber(node)!;
+    ranks.set(node, rank + smallestRank);
+  });
+}
+
+export function updateTreeValues(
+  graph: Graph,
+  tree: Graph,
+  ranks: RankTable,
+  minSlackEdge: Edge
+) {
+  const rootNode = graph.nodes()[0];
+  const { v, w } = minSlackEdge;
+  const commonAncestor = getClosestCommonAncestor(tree, v, w)!;
+
+  if (commonAncestor === rootNode) {
+    const newRanks = setRanks(tree);
+    setCutValues(graph, tree, newRanks);
+    return newRanks;
+  }
+
+  updateRanks(tree, ranks, commonAncestor);
+
+  const { number, minSubtreeNumber } = tree.node(commonAncestor)!;
+  const stack: NodeId[] = tree.neighbors(commonAncestor)!.filter((neighbor) => {
+    return number < tree.node(neighbor)!.number;
+  });
+
+  postorderNumber(tree, ranks, commonAncestor, stack, minSubtreeNumber);
+  postorderSetCutValues(graph, tree, commonAncestor, stack);
+
+  return ranks;
+}
+
+export function updateRanks(
+  tree: Graph,
+  ranks: RankTable,
+  commonAncestor: NodeId
+) {
+  const ancestorNumber = tree.node(commonAncestor)!.number;
+  const subtreeNodes: NodeId[] = tree
+    .neighbors(commonAncestor)!
+    .filter((neighbor) => {
+      const neighborNumber = tree.node(neighbor)!.number;
+      return neighborNumber < ancestorNumber;
+    });
+
+  for (const node of subtreeNodes) {
+    const nodeNumber = tree.node(node)!.number;
+
+    tree.neighbors(node)!.forEach((neighbor) => {
+      const neighborNumber = tree.node(neighbor)!.number;
+      if (neighborNumber < nodeNumber) subtreeNodes.push(neighbor);
+    });
+  }
+
+  const newRanks = setRanks(tree, subtreeNodes);
+
+  subtreeNodes.forEach((node) => {
+    ranks.set(node, newRanks.getRankNumber(node)!);
+  });
+}
+
+export function getClosestCommonAncestor(
+  tree: Graph,
+  node0: NodeId,
+  node1: NodeId
+) {
+  const { number: node0Number } = tree.node(node0)!;
+  const { number: node1Number } = tree.node(node1)!;
+  const lowestNumber = Math.min(node0Number, node1Number);
+  const highestNumber = Math.max(node0Number, node1Number);
+  const nodes = tree.neighbors(node0)!;
+
+  for (const node of nodes) {
+    const { number, minSubtreeNumber } = tree.node(node)!;
+
+    if (minSubtreeNumber <= highestNumber && lowestNumber <= number)
+      return node;
+
+    tree.neighbors(node)!.forEach((neighbor) => {
+      if (!nodes.includes(neighbor)) nodes.push(neighbor);
+    });
+  }
 }
 
 export function getFeasibleTree(graph: Graph) {
-  const ranks = initializeRanks(graph);
+  const ranks = setRanks(graph);
   const tree = getTightTree(graph, ranks);
-  const minSlackGetter = () => {};
 
   while (tree.nodeCount() < graph.nodeCount()) {
-    const { minSlackEdge, minSlack } = getMinSlackEdge(graph, tree, ranks);
-    let slack = minSlack;
+    const { minSlackEdge, minSlack } = getMinSlack(graph, tree, ranks);
+    const { v, w } = minSlackEdge!;
+    let delta: number;
+    let newNode: NodeId;
 
-    if (tree.hasNode(minSlackEdge.v)) slack = -slack;
+    if (tree.hasNode(v)) {
+      delta = minSlack;
+      newNode = w;
+    } else {
+      delta = -minSlack;
+      newNode = v;
+    }
 
-    for (const node of tree.nodes()) {
-      const newRank = ranks.get(node)! + slack;
+    tree.setNode(newNode);
+    tree.setEdge(minSlackEdge!);
+
+    for (const node of graph.nodes()) {
+      if (node === newNode) continue;
+      const newRank = ranks.getRankNumber(node)! + delta;
       ranks.set(node, newRank);
     }
   }
 
-  tree.edges().forEach((edge) => {
-    setCutValue(tree, ranks, edge);
-  });
+  setCutValues(graph, tree, ranks);
 
   return { tree, ranks };
 }
 
-export function initializeRanks(graph: Graph) {
-  const nodes: NodeId[] = [...graph.nodes()];
+export function setRanks(graph: Graph, nodeList?: NodeId[]) {
+  const nodes = nodeList || graph.nodes();
   const ranks = new RankTable();
 
   while (nodes.length > 0) {
@@ -70,7 +164,7 @@ export function initializeRanks(graph: Graph) {
 
         for (let j = 0; j < parents.length; j++) {
           const parent = parents[j];
-          const parentRank = ranks.getByNode(parent);
+          const parentRank = ranks.getRankNumber(parent);
 
           if (parentRank === undefined) {
             maxParentRank = -Infinity;
@@ -93,172 +187,206 @@ export function initializeRanks(graph: Graph) {
 }
 
 export function getTightTree(graph: Graph, ranks: RankTable) {
-  if (graph.nodeCount() === 0 || ranks.size === 0) return new Graph();
+  if (graph.nodeCount() === 0) return new Graph();
 
   const tightTree = new Graph();
+  const node = graph.nodes()[0];
+  const edges = graph.nodeEdges(node) || [];
 
-  graph.setNode("dummyRootNode");
-  ranks.getByRank(0)!.forEach((node) => {
-    graph.setEdge("dummyRootNode", node);
-  });
-  ranks.set("dummyRootNode", -1);
+  tightTree.setNode(node);
 
-  visitTightTreeNode(graph, ranks, tightTree, "dummyRootNote", 1);
+  for (const edge of edges) {
+    const { v, w } = edge;
+    const rankDistance = Math.abs(
+      ranks.getRankNumber(v)! - ranks.getRankNumber(w)!
+    );
 
-  graph.removeNode("dummyRootNode"); // Edges are implicitly removed
+    if (rankDistance === 1) {
+      const newNode = tightTree.hasNode(v) ? w : v;
+      const newEdges = graph.nodeEdges(newNode)!;
+
+      tightTree.setNode(newNode);
+      tightTree.setEdge(edge);
+      newEdges.forEach((newEdge) => {
+        const { v: newV, w: newW } = newEdge;
+
+        if (!tightTree.hasNode(newV) || !tightTree.hasNode(newW))
+          edges.push(newEdge);
+      });
+    }
+  }
 
   return tightTree;
 }
 
-export function visitTightTreeNode(
-  graph: Graph,
+export function setCutValues(graph: Graph, tree: Graph, ranks: RankTable) {
+  const rootNode = graph.nodes()[0];
+  const stack: NodeId[] = [];
+
+  postorderNumber(tree, ranks, rootNode, stack, 1);
+  postorderSetCutValues(graph, tree, rootNode, stack);
+}
+
+export function postorderNumber(
+  tree: Graph,
   ranks: RankTable,
-  tightTree: Graph,
   node: NodeId,
+  stack: NodeId[],
   number: number
 ) {
-  const outEdges = graph.outEdges(node);
-  let lastChildNumber = number;
+  stack.push(node);
 
-  if (!!outEdges) {
-    outEdges.forEach((outEdge) => {
-      const { v, w } = outEdge;
-      const rankDistance = ranks.getByNode(w)! - ranks.getByNode(v)!;
+  const neighbors = tree.neighbors(node) || [];
+  let nextNumber = number;
 
-      if (rankDistance === 1) {
-        lastChildNumber = visitTightTreeNode(
-          graph,
-          ranks,
-          tightTree,
-          node,
-          lastChildNumber
-        );
+  neighbors.forEach((neighbor) => {
+    if (!stack.includes(neighbor))
+      nextNumber = postorderNumber(tree, ranks, neighbor, stack, nextNumber);
+  });
 
-        tightTree.setEdge(v, w);
-      }
-    });
-  } else {
-    tightTree.setNode(node, {
-      number,
-      minSubtreeNumber: number,
-    });
-
-    return number + 1;
-  }
-
-  const nodeNumber = lastChildNumber + 1;
-
-  tightTree.setNode(node, {
-    number: nodeNumber,
+  tree.setNode(node, {
+    number: nextNumber,
     minSubtreeNumber: number,
   });
 
-  return nodeNumber;
+  stack.pop();
+
+  return nextNumber + 1;
 }
 
-export function iterateMinSlackEdges(
+export function postorderSetCutValues(
   graph: Graph,
   tree: Graph,
-  ranks: RankTable
+  node: NodeId,
+  stack: NodeId[]
 ) {
-  const viableEdges = graph.edges().filter((edge) => {
-    const { v, w } = edge;
+  stack.push(node);
 
-    return !tree.hasEdge(edge) && (!tree.hasNode(v) || !tree.hasNode(w));
-  });
-  let currentIndex = 0;
+  const { number, minSubtreeNumber } = tree.node(node)!;
+  const isLeafNode = number === minSubtreeNumber;
+  const treeEdges = tree.nodeEdges(node) || [];
+  let parentEdge: Edge | undefined;
+  let cutValue = 0;
 
-  viableEdges.sort((edge0, edge1) => {
-    const { v: v0, w: w0 } = edge0;
-    const { v: v1, w: w1 } = edge1;
-    const slack0 = ranks.getByNode(w0)! - ranks.getByNode(v0)! - 1;
-    const slack1 = ranks.getByNode(w1)! - ranks.getByNode(v1)! - 1;
+  if (treeEdges.length === 0) {
+    stack.pop();
+    return;
+  }
 
-    if (slack0 < slack1) return -1;
-    if (slack0 > slack1) return 1;
-    return 0;
-  });
+  if (isLeafNode) {
+    parentEdge = treeEdges[0];
+    const predecessors = graph.predecessors(node) || [];
+    const successors = graph.successors(node) || [];
+    cutValue = predecessors.length - successors.length;
+  } else {
+    const neighbors = tree.neighbors(node)!;
 
-  let minSlackEdge: Edge = { v: "", w: "" };
+    neighbors.forEach((neighbor) => {
+      if (!stack.includes(neighbor))
+        postorderSetCutValues(graph, tree, neighbor, stack);
+    });
+
+    parentEdge = treeEdges.find(
+      (edge) => tree.edge(edge).cutValue === undefined
+    );
+
+    if (parentEdge === undefined) {
+      stack.pop();
+      return;
+    }
+
+    graph.nodeEdges(node)!.forEach((edge) => {
+      const connectedNodeType = getConnectedNode(node, edge).nodeType;
+      const edgeCutValue = graph.edge(edge).cutValue;
+      const delta = !!edgeCutValue ? edgeCutValue - 1 : 1;
+
+      if (connectedNodeType === "tail") {
+        cutValue += delta;
+      } else {
+        cutValue -= delta;
+      }
+    });
+  }
+
+  tree.setEdge(parentEdge, { cutValue });
+
+  stack.pop();
+}
+
+type ConnectedNodeType = "tail" | "head";
+
+export function getConnectedNode(
+  node: NodeId,
+  edge: Edge
+): { node: NodeId; nodeType: ConnectedNodeType } {
+  const { v, w } = edge;
+
+  if (node === v) return { node: w, nodeType: "head" };
+  return { node: v, nodeType: "tail" };
+}
+
+export function getMinSlack(graph: Graph, tree: Graph, ranks: RankTable) {
+  let minSlackEdge: Edge | null = null;
   let minSlack = Infinity;
 
   for (const edge of graph.edges()) {
     const { v, w } = edge;
 
-    if (tree.hasEdge(edge) || (tree.hasNode(v) && tree.hasNode(w))) continue;
+    if (tree.hasNode(v) && tree.hasNode(w)) continue;
 
-    const slack = ranks.getByNode(w)! - ranks.getByNode(v)! - 1;
+    const rankDistance = Math.abs(
+      ranks.getRankNumber(v)! - ranks.getRankNumber(w)!
+    );
+    const slack = rankDistance - 1;
 
     if (slack < minSlack) {
-      minSlack = slack;
       minSlackEdge = edge;
+      minSlack = slack;
     }
   }
 
   return { minSlackEdge, minSlack };
 }
 
-export function setCutValue(
-  tree: Graph,
-  ranks: Map<NodeId, number>,
-  edge: Edge
-) {
-  const { v, w } = edge;
-  const vRank = ranks.get(v)!;
-  const wRank = ranks.get(w)!;
-  let tailDirection: Direction;
-  let headDirection: Direction;
-  let cutValue = 1;
+export class NegativeCutValueEdgeIterator {
+  private tree: Graph;
+  private index: number;
 
-  if (vRank < wRank) {
-    tailDirection = "up";
-    headDirection = "down";
-  } else {
-    tailDirection = "down";
-    headDirection = "up";
+  constructor(tree: Graph) {
+    this.tree = tree;
+    this.index = 0;
+    this.hasNext = this.hasNext.bind(this);
+    this.next = this.next.bind(this);
   }
 
-  const tailComponent = getRankConstrainedComponent(
-    tree,
-    v,
-    ranks,
-    tailDirection
-  );
-  const headComponent = getRankConstrainedComponent(
-    tree,
-    w,
-    ranks,
-    headDirection
-  );
-  const { incidentEdges: tailIncidentEdges } = tailComponent;
-  const { nodes: headNodes } = headComponent;
+  private checkCutValue() {
+    if (this.index === this.tree.edges().length) return false;
 
-  tailIncidentEdges.delete(`${v} -> ${w}`);
+    const edge = this.tree.edges()[this.index];
+    const cutValue = this.tree.edge(edge)!.cutValue;
 
-  for (const tailIncidentEdge of tailIncidentEdges) {
-    const { v: otherV, w: otherW } = readEdgeString(tailIncidentEdge);
+    return cutValue < 0;
+  }
 
-    if (headNodes.has(otherW)) {
-      cutValue++;
-    } else if (headNodes.has(otherV)) {
-      cutValue--;
+  hasNext() {
+    const startIndex = this.index;
+
+    while (!this.checkCutValue()) {
+      this.index = (this.index + 1) % this.tree.edges().length;
+      if (this.index === startIndex) return false;
     }
+
+    return true;
   }
 
-  tree.setEdge(v, w, { cutValue, tailComponent, headComponent });
-}
+  next() {
+    if (this.hasNext()) {
+      const edge = this.tree.edges()[this.index];
+      return edge;
+    }
 
-export function stringifyNodeEdges(graph: Graph, node: NodeId) {
-  const outEdges = graph.outEdges(node) || [];
-  const inEdges = graph.inEdges(node) || [];
-  const edges = [...outEdges, ...inEdges];
-
-  return edges.map((edge) => `${edge.v} -> ${edge.w}`);
-}
-
-export function readEdgeString(edgeString: string) {
-  const [v, w] = edgeString.split(" -> ");
-  return { v, w };
+    return null;
+  }
 }
 
 export function getNegativeCutValueEdge(tree: Graph) {
@@ -276,67 +404,42 @@ export function getNontreeMinSlackEdge(
   tree: Graph,
   cutEdge: Edge
 ) {
-  const { tailComponent, headComponent } = tree.edge(cutEdge)!;
-  let nontreeMinSlackEdge: Edge = { v: "", w: "" };
-  let nontreeMinSlack = Infinity;
+  const { v, w } = cutEdge;
+  const { number: vNumber, minSubtreeNumber: vMinSubtreeNumber } =
+    tree.node(v)!;
+  const { number: wNumber, minSubtreeNumber: wMinSubtreeNumber } =
+    tree.node(w)!;
+  const rootNodeInHead = vNumber < wNumber;
+  let checkNodeInTail: (node: NodeId) => boolean;
+  let minSlackEdge: Edge | null = null;
+  let minSlack = Infinity;
 
-  graph.edges().forEach((edge) => {
-    const { v: otherV, w: otherW } = edge;
-    const vInHeadComponent = headComponent.nodes.has(otherV);
-    const wInTailComponent = tailComponent.nodes.has(otherW);
+  if (rootNodeInHead) {
+    checkNodeInTail = (node) => {
+      const nodeNumber = tree.node(node)!.number;
+      return vMinSubtreeNumber <= nodeNumber && nodeNumber <= vNumber;
+    };
+  } else {
+    checkNodeInTail = (node) => {
+      const nodeNumber = tree.node(node)!.number;
+      return wMinSubtreeNumber <= nodeNumber && nodeNumber <= wNumber;
+    };
+  }
+
+  for (const edge of graph.edges()) {
     const edgeCutValue = tree.edge(edge)!.cutValue;
 
-    if (
-      vInHeadComponent &&
-      wInTailComponent &&
-      edgeCutValue < nontreeMinSlack &&
-      !tree.hasEdge(edge)
-    ) {
-      nontreeMinSlackEdge = edge;
-      nontreeMinSlack = edgeCutValue;
-    }
-  });
+    if (tree.hasEdge(edge) || edgeCutValue >= minSlack) continue;
 
-  return nontreeMinSlackEdge;
-}
+    const { v: otherV, w: otherW } = edge;
+    const vInHeadComponent = !checkNodeInTail(otherV);
+    const wInTailComponent = checkNodeInTail(otherW);
 
-export function getRankConstrainedComponent(
-  tree: Graph,
-  baseNode: NodeId,
-  ranks: Map<NodeId, number>,
-  direction: Direction
-) {
-  const baseNodeRank = ranks.get(baseNode)!;
-  const baseNodeEdges = stringifyNodeEdges(tree, baseNode);
-  const componentEdges = new Set<EdgeString>(baseNodeEdges);
-  const componentNodes = new Set<NodeId>(baseNode);
-  const componentIncidentEdges = new Set<EdgeString>();
-
-  for (const edge of componentEdges) {
-    const { v, w } = readEdgeString(edge);
-    const nextNode = componentNodes.has(v) ? w : v;
-    const nextNodeRank = ranks.get(nextNode)!;
-
-    if (
-      (direction === "up" && nextNodeRank <= baseNodeRank) ||
-      (direction === "down" && nextNodeRank >= baseNodeRank)
-    ) {
-      const nextEdges = stringifyNodeEdges(tree, nextNode);
-
-      nextEdges.forEach((edge) => componentEdges.add(edge));
-      componentNodes.add(nextNode);
-    } else {
-      componentIncidentEdges.add(edge);
+    if (vInHeadComponent && wInTailComponent) {
+      minSlackEdge = edge;
+      minSlack = edgeCutValue;
     }
   }
 
-  const component: {
-    nodes: Set<NodeId>;
-    incidentEdges: Set<EdgeString>;
-  } = {
-    nodes: componentNodes,
-    incidentEdges: componentIncidentEdges,
-  };
-
-  return component;
+  return minSlackEdge;
 }

@@ -92,27 +92,45 @@ export type NodeId = string;
 
 export class RankTable {
   private nodeToRank: Map<NodeId, number>;
-  private rankToNode: Map<number, NodeId[]>;
-  size: number;
+  private rankToNode: Map<number, Map<NodeId, true>>;
 
   constructor() {
     this.nodeToRank = new Map();
     this.rankToNode = new Map();
-    this.size = this.rankToNode.size;
   }
 
   set(node: NodeId, rank: number) {
-    const oldRank: NodeId[] = this.rankToNode.get(rank) || [];
+    const oldRankNumber = this.getRankNumber(node);
+    const existingRankEntries = this.getRankNodes(rank);
+
+    if (!!oldRankNumber) {
+      const oldRank = this.getRankNodes(oldRankNumber)!;
+      oldRank.delete(node);
+    }
+
+    if (!!existingRankEntries) {
+      existingRankEntries!.set(node, true);
+    } else {
+      const newRankEntry = new Map<NodeId, true>([[node, true]]);
+      this.rankToNode.set(rank, newRankEntry);
+    }
 
     this.nodeToRank.set(node, rank);
-    this.rankToNode.set(rank, [...oldRank, node]);
   }
 
-  getByNode(node: NodeId) {
+  getRankNumber(node: NodeId) {
     return this.nodeToRank.get(node);
   }
 
-  getByRank(rank: number) {
+  getRankNodes(rank: number) {
     return this.rankToNode.get(rank);
+  }
+
+  getSize() {
+    return this.nodeToRank.size;
+  }
+
+  getSmallestRank() {
+    return Math.min(...this.rankToNode.keys());
   }
 }
