@@ -12,13 +12,13 @@ describe("Node Layer Assignment", () => {
 
     g.setNode("b");
     g.setNode("c");
-    g.setNode("a");
     g.setNode("d");
     g.setNode("e");
     g.setNode("f");
     g.setNode("g");
     g.setNode("h");
     g.setNode("i");
+    g.setNode("a");
     g.setNode("j");
     g.setNode("k");
     g.setNode("l");
@@ -28,7 +28,6 @@ describe("Node Layer Assignment", () => {
     g.setNode("p");
     g.setNode("q");
     g.setNode("r");
-    g.setEdge("a", "b");
     g.setEdge("a", "c");
     g.setEdge("a", "d");
     g.setEdge("b", "e");
@@ -38,6 +37,7 @@ describe("Node Layer Assignment", () => {
     g.setEdge("d", "i");
     g.setEdge("d", "j");
     g.setEdge("e", "k");
+    g.setEdge("a", "b");
     g.setEdge("e", "l");
     g.setEdge("f", "m");
     g.setEdge("f", "n");
@@ -45,6 +45,9 @@ describe("Node Layer Assignment", () => {
     g.setEdge("g", "p");
     g.setEdge("h", "q");
     g.setEdge("k", "r");
+
+    g.setEdge("i", "c");
+    g.setEdge("l", "g");
 
     const ranks = layerNodes(g);
     console.log(ranks);
