@@ -1,9 +1,17 @@
 import { Edge, Graph, json } from "graphlib";
+import { NodeId } from "./utils";
 
 const { read, write } = json;
 
-type NodeId = string;
-
+/**
+ * Removes cycles from the input graph and returns the modified edges. The
+ * algorithm is heavily based on Eades et al.'s greedy cycle removal.
+ *
+ * @remarks Run time at least as good as O(|V| + |E|).
+ *
+ * @param graph A graphlib graph object. Must be directed.
+ * @returns The modified edges.
+ */
 export default function removeCycles(graph: Graph) {
   const graphCopy = read(write(graph));
   const { sources, sinks } = greedilyGetFS(graphCopy);

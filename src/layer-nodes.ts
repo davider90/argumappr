@@ -5,6 +5,15 @@ const MAX_LOOPS = 100;
 
 type NodeId = string;
 
+/**
+ * Assigns all nodes of the input graph to optimal ranks and returns the layers.
+ * The algorithm is based on Gansner et al.'s network simplex algorithm.
+ *
+ * @remarks Non-proven polynomial run time and "fast in practice."
+ *
+ * @param graph A graphlib graph object. Must be directed.
+ * @returns A rank table.
+ */
 export default function layerNodes(graph: Graph) {
   const treeAndRanks = getFeasibleTree(graph);
   const { tree } = treeAndRanks;
