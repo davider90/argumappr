@@ -49,8 +49,9 @@ describe("Node Layer Assignment", () => {
     g.setEdge("i", "c");
     g.setEdge("l", "g");
 
+    console.profile("layerNodes");
     const ranks = layerNodes(g);
-    console.log(ranks);
+    console.profileEnd("layerNodes");
   });
   // describe("Initial Ranking", () => {
   //   it("should be a function", () => {

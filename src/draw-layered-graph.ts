@@ -3,6 +3,7 @@ import removeCycles from "./remove-cycles";
 import layerNodes from "./layer-nodes";
 import minimiseCrossings from "./minimise-crossings";
 import straightenEdges from "./straighten-edges";
+import { buildLayoutGraph } from "./utils";
 
 /**
  * Produces a hierarchical layout of a directed graph. The algorithm is based on
@@ -15,6 +16,8 @@ function drawLayeredGraph(graph: Graph) {
   if (!graph.isDirected()) {
     throw new Error("Graph must be directed for layered drawing");
   }
+
+  const layoutGraph = buildLayoutGraph(graph);
 
   const originalEdges = removeCycles(graph);
   const two = layerNodes(graph);

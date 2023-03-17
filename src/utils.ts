@@ -120,7 +120,7 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
 }
 
 export function buildLayoutGraph(inputGraph: Graph) {
-  const layoutGraph = new Graph({ multigraph: true, compound: true });
+  const layoutGraph = new Graph({ directed: true, compound: true });
   const inputGraphLabel = inputGraph.graph() as any;
 
   layoutGraph.setGraph({ ...GRAPH_DEFAULTS, ...inputGraphLabel });
