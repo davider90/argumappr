@@ -29,13 +29,13 @@ describe("Cycle Handling", () => {
 
       assert.isUndefined(returnValue);
 
-      returnValue = reverseEdge(graph, ["a"], ["b"], edge);
+      returnValue = reverseEdge(graph, ["b"], ["a"], edge);
       const expectedValue = { ...edge, value: undefined };
 
       assert.deepEqual(returnValue, expectedValue);
     });
 
-    it("should reverse an edge from sources to sinks", () => {
+    it("should reverse an edge from node1 to node0", () => {
       const graph = new Graph();
 
       graph.setNode("a");
@@ -44,7 +44,7 @@ describe("Cycle Handling", () => {
 
       const edge = graph.edges()[0];
 
-      reverseEdge(graph, ["a"], ["b"], edge);
+      reverseEdge(graph, ["b"], ["a"], edge);
 
       const expectedEdge = { v: "b", w: "a", value: undefined };
       const actualEdge = { ...graph.edges()[0], value: undefined };
@@ -130,7 +130,7 @@ describe("Cycle Handling", () => {
 
       graph.setEdge("a", "a");
 
-      returnValue = handleEdges(graph, ["a"], ["b", "c"]);
+      returnValue = handleEdges(graph, ["b", "c"], ["a"]);
       const expectedEdge = { v: "a", w: "b", value: undefined };
       const expectedLoop = { v: "a", w: "a", value: undefined };
 
@@ -151,7 +151,7 @@ describe("Cycle Handling", () => {
       graph.setEdge("b", "c");
       graph.setEdge("c", "a");
 
-      handleEdges(graph, ["a", "b"], ["c"]);
+      handleEdges(graph, ["c"], ["a", "b"]);
 
       const expectedEdges = [
         { v: "a", w: "b" },
@@ -199,23 +199,23 @@ describe("Cycle Handling", () => {
       assert.isFunction(greedilyGetFS);
     });
 
-    it("should return an object with sources and sinks", () => {
+    it("should return an object with two vertice sets", () => {
       const graph = new Graph();
       const returnValue = greedilyGetFS(graph);
 
       assert.isObject(returnValue);
-      assert.property(returnValue, "sources");
-      assert.property(returnValue, "sinks");
-      assert.isArray(returnValue.sources);
-      assert.isArray(returnValue.sinks);
+      assert.property(returnValue, "nodes0");
+      assert.property(returnValue, "nodes1");
+      assert.isArray(returnValue.nodes0);
+      assert.isArray(returnValue.nodes1);
     });
 
     it("should return sources and sinks of the graph", () => {
       const graph = new Graph();
       let returnValue = greedilyGetFS(graph);
 
-      assert.isEmpty(returnValue.sources);
-      assert.isEmpty(returnValue.sinks);
+      assert.isEmpty(returnValue.nodes0);
+      assert.isEmpty(returnValue.nodes1);
 
       graph.setNode("a");
       graph.setNode("b");
@@ -225,9 +225,9 @@ describe("Cycle Handling", () => {
 
       returnValue = greedilyGetFS(graph);
 
-      assert.isEmpty(returnValue.sources);
-      assert.lengthOf(returnValue.sinks, 3);
-      assert.sameMembers(returnValue.sinks, ["a", "b", "c"]);
+      assert.isEmpty(returnValue.nodes0);
+      assert.lengthOf(returnValue.nodes1, 3);
+      assert.sameMembers(returnValue.nodes1, ["a", "b", "c"]);
 
       graph.setNode("a");
       graph.setNode("b");
@@ -241,10 +241,10 @@ describe("Cycle Handling", () => {
 
       returnValue = greedilyGetFS(graph);
 
-      assert.lengthOf(returnValue.sources, 2);
-      assert.lengthOf(returnValue.sinks, 2);
-      assert.sameMembers(returnValue.sources, ["b", "a"]);
-      assert.sameMembers(returnValue.sinks, ["c", "d"]);
+      assert.lengthOf(returnValue.nodes0, 2);
+      assert.lengthOf(returnValue.nodes1, 2);
+      assert.sameMembers(returnValue.nodes0, ["b", "a"]);
+      assert.sameMembers(returnValue.nodes1, ["c", "d"]);
     });
 
     it("should leave the graph empty", () => {
