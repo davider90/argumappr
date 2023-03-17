@@ -68,6 +68,18 @@ export function buildSimpleGraph(graph: Graph) {
 }
 
 /**
+ * @private
+ *
+ * @param graph A graphlib graph object.
+ * @param node A node id.
+ * @param value An object containing new node values.
+ */
+export function updateNodeValue(graph: Graph, node: NodeId, value: any) {
+  const oldNodeValue = graph.node(node);
+  graph.setNode(node, { ...oldNodeValue, ...value });
+}
+
+/**
  * The following code block contains code derived from the dagre project, which
  * can be found at https://github.com/dagrejs/dagre. Dagre is licensed under the
  * MIT license. Therefore, the following copyright notice is included:
