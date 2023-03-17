@@ -48,6 +48,26 @@ export class RankTable {
 }
 
 /**
+ * @private
+ *
+ * @param graph A graphlib graph object. Must be directed.
+ * @returns A simple copy of the graph.
+ */
+export function buildSimpleGraph(graph: Graph) {
+  const simpleGraph = new Graph({ directed: true });
+
+  graph.nodes().forEach((nodeId) => {
+    simpleGraph.setNode(nodeId);
+  });
+
+  graph.edges().forEach((edge) => {
+    simpleGraph.setEdge(edge);
+  });
+
+  return simpleGraph;
+}
+
+/**
  * The following code block contains code derived from the dagre project, which
  * can be found at https://github.com/dagrejs/dagre. Dagre is licensed under the
  * MIT license. Therefore, the following copyright notice is included:
