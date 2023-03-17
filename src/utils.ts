@@ -74,13 +74,9 @@ export class RankTable {
  */
 // -----------------------------------------------------------------------------
 
-const graphNumAttrs = ["nodesep", "edgesep", "ranksep", "marginx", "marginy"];
-const graphDefaults = { ranksep: 50, edgesep: 20, nodesep: 50, rankdir: "tb" };
-const graphAttrs = ["acyclicer", "ranker", "rankdir", "align"];
-const nodeNumAttrs = ["width", "height"];
-const nodeDefaults = { width: 0, height: 0 };
-const edgeNumAttrs = ["minlen", "weight", "width", "height", "labeloffset"];
-const edgeDefaults = {
+const GRAPH_DEFAULTS = { ranksep: 50, edgesep: 20, nodesep: 50, rankdir: "tb" };
+const NODE_DEFAULTS = { width: 0, height: 0 };
+const EDGE_DEFAULTS = {
   minlen: 1,
   weight: 1,
   width: 0,
@@ -88,7 +84,6 @@ const edgeDefaults = {
   labeloffset: 10,
   labelpos: "r",
 };
-const edgeAttrs = ["labelpos"];
 
 export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
   inputGraph.nodes().forEach((node) => {
@@ -126,37 +121,22 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
 
 export function buildLayoutGraph(inputGraph: Graph) {
   const layoutGraph = new Graph({ multigraph: true, compound: true });
-  // const graph = canonicalize(inputGraph.graph());
+  const inputGraphLabel = inputGraph.graph() as any;
 
-  layoutGraph.setGraph(
-    _.merge(
-      {},
-      graphDefaults,
-      selectNumberAttrs(graph, graphNumAttrs),
-      _.pick(graph, graphAttrs)
-    )
-  );
+  layoutGraph.setGraph({ ...GRAPH_DEFAULTS, ...inputGraphLabel });
 
-  _.forEach(inputGraph.nodes(), function (v) {
-    const node = canonicalize(inputGraph.node(v));
-    layoutGraph.setNode(
-      v,
-      _.defaults(selectNumberAttrs(node, nodeNumAttrs), nodeDefaults)
-    );
-    layoutGraph.setParent(v, inputGraph.parent(v));
+  inputGraph.nodes().forEach((node) => {
+    const nodeLabel = inputGraph.node(node);
+    const nodeParent = inputGraph.parent(node) as string | undefined;
+
+    layoutGraph.setNode(node, { ...NODE_DEFAULTS, ...nodeLabel });
+    layoutGraph.setParent(node, nodeParent);
   });
 
-  _.forEach(inputGraph.edges(), function (e) {
-    const edge = canonicalize(inputGraph.edge(e));
-    layoutGraph.setEdge(
-      e,
-      _.merge(
-        {},
-        edgeDefaults,
-        selectNumberAttrs(edge, edgeNumAttrs),
-        _.pick(edge, edgeAttrs)
-      )
-    );
+  inputGraph.edges().forEach((edge) => {
+    const edgeLabel = inputGraph.edge(edge);
+
+    layoutGraph.setEdge(edge, { ...EDGE_DEFAULTS, ...edgeLabel });
   });
 
   return layoutGraph;
