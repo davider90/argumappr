@@ -19,9 +19,9 @@ function drawLayeredGraph(graph: Graph) {
 
   const layoutGraph = buildLayoutGraph(graph);
 
-  const originalEdges = removeCycles(graph);
-  const two = layerNodes(graph);
-  const three = minimiseCrossings(two);
+  const originalEdges = removeCycles(layoutGraph);
+  const ranks = layerNodes(layoutGraph);
+  const three = minimiseCrossings(layoutGraph, ranks);
   const four = straightenEdges(three);
 }
 
