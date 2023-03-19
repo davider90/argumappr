@@ -8,7 +8,8 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
     const previousLayer = rankArray[i - 1];
     const currentLayer = rankArray[i];
 
-    currentLayer.forEach((node) => {
+    for (let j = 0; j < currentLayer.length; j++) {
+      const node = currentLayer[j];
       const predecessors = graph.predecessors(node)!;
       let predecessorsPositionSum = 0;
 
@@ -16,8 +17,16 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
         predecessorsPositionSum += previousLayer.indexOf(predecessor);
       });
 
-      const averagePosition = predecessorsPositionSum / predecessors.length;
-    });
+      const averagePredecessorPosition =
+        predecessorsPositionSum / predecessors.length;
+      const newNodePosition = Math.round(
+        (averagePredecessorPosition / previousLayer.length) *
+          currentLayer.length
+      );
+
+      currentLayer.splice(j, 1);
+      currentLayer.splice(newNodePosition, 0, node);
+    }
   }
 }
 
