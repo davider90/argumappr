@@ -291,9 +291,15 @@ export function postorderSetCutValues(
 
   if (isLeafNode) {
     parentEdge = treeEdges[0];
+    const connectedNodeType = getConnectedNode(node, parentEdge).nodeType;
     const predecessors = graph.predecessors(node) || [];
     const successors = graph.successors(node) || [];
-    cutValue = predecessors.length - successors.length;
+
+    if (connectedNodeType === "tail") {
+      cutValue = predecessors.length - successors.length;
+    } else {
+      cutValue = successors.length - predecessors.length;
+    }
   } else {
     const neighbors = tree.neighbors(node)!;
 
