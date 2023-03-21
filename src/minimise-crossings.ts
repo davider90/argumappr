@@ -2,8 +2,15 @@ import { Edge, Graph } from "graphlib";
 import { NodeId, RankTable, updateNodeValue } from "./utils";
 
 /**
- * Minimises the number of crossings between the ranks of a graph by
- * implementing the barycenter heuristic.
+ * Minimises the number of crossings between the ranks of a graph by iteratively
+ * sweeping the ranks from top to bottom and bottom to top until an optimum is
+ * reached. This is based on the down-up barycenter heuristic described by
+ * Sugiyama et al. The algorithm might not produce the global optimum, but it
+ * will always find a positioning with 0 crossings if one exists. Also, it has
+ * been reported to consistently be within 3 percent of optimal.
+ *
+ * @see https://ieeexplore.ieee.org/document/4308636
+ * @remarks Reportedly, among the best run times of algorithms for this problem.
  *
  * @param graph A graphlib graph object.
  * @param ranks A ranking of the nodes in the graph.
