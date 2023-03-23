@@ -74,7 +74,7 @@ export function buildSimpleGraph(graph: Graph) {
  * @param node A node id.
  * @param value An object containing new node values.
  */
-export function updateNodeValue(graph: Graph, node: NodeId, value: any) {
+export function appendNodeValues(graph: Graph, node: NodeId, value: any) {
   const oldNodeValue = graph.node(node);
   graph.setNode(node, { ...oldNodeValue, ...value });
 }
