@@ -21,8 +21,8 @@ function drawLayeredGraph(graph: Graph) {
 
   const originalEdges = removeCycles(layoutGraph);
   const ranks = layerNodes(layoutGraph);
-  const three = minimiseCrossings(layoutGraph, ranks);
-  const four = straightenEdges(three);
+  const graphMatrix = minimiseCrossings(layoutGraph, ranks);
+  const four = straightenEdges(layoutGraph, graphMatrix);
 }
 
 export default drawLayeredGraph;
