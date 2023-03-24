@@ -1,5 +1,5 @@
 import { Edge, Graph } from "graphlib";
-import { NodeId, RankTable, updateNodeValue } from "./utils";
+import { NodeId, RankTable, appendNodeValues } from "./utils";
 
 /**
  * Minimises the number of crossings between the ranks of a graph by iteratively
@@ -67,7 +67,7 @@ function sweepLayer(
         : graph.predecessors(node)!;
 
     if (!neighbors.length) {
-      updateNodeValue(graph, node, { barycenter: nodeIndex });
+      appendNodeValues(graph, node, { barycenter: nodeIndex });
       continue;
     }
 
@@ -81,7 +81,7 @@ function sweepLayer(
     });
 
     const neighborsPositionAverage = neighborsPositionSum / neighbors.length;
-    updateNodeValue(graph, node, { barycenter: neighborsPositionAverage });
+    appendNodeValues(graph, node, { barycenter: neighborsPositionAverage });
   }
 
   layer.sort((v, w) => {
