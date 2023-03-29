@@ -9,6 +9,7 @@ import { RankTable } from "../src/utils";
 describe("Node Layer Assignment", () => {
   it("test", () => {
     const g = new Graph();
+    g.setDefaultNodeLabel(() => ({}));
 
     g.setNode("b");
     g.setNode("c");

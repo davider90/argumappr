@@ -193,7 +193,6 @@ describe("Minimise Crossings", () => {
 
       const graphMatrix = minimiseCrossings(graph, ranks);
 
-      console.log(graphMatrix);
       assert.equal(graphMatrix[0][0], "b");
       assert.equal(graphMatrix[0][1], "a");
       assert.equal(graphMatrix[1][0], "c");
@@ -202,6 +201,7 @@ describe("Minimise Crossings", () => {
 
     it("should eliminate crossings when possible - complex", () => {
       const graph = new Graph();
+      graph.setDefaultNodeLabel(() => ({}));
 
       graph.setNode("b");
       graph.setNode("f");
@@ -248,6 +248,7 @@ describe("Minimise Crossings", () => {
 
     it("should minimise the number of crossings", () => {
       const graph = new Graph();
+      graph.setDefaultNodeLabel(() => ({}));
 
       graph.setNode("a");
       graph.setNode("b");

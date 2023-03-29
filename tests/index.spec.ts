@@ -41,6 +41,8 @@ describe("Project", () => {
     });
 
     const graph = new graphlib.Graph();
+    graph.setDefaultNodeLabel(() => ({}));
+
     graph.setNode("a");
     graph.setNode("b");
     graph.setNode("c");
@@ -48,11 +50,11 @@ describe("Project", () => {
     graph.setNode("e");
     graph.setEdge("a", "b");
     graph.setEdge("b", "c");
-    graph.setEdge("d", "e");
+    graph.setEdge("c", "e");
     graph.setEdge("e", "d");
 
-    it("should return an object", () => {
-      assert.isObject(drawLayeredGraph(graph));
+    it("should return void", () => {
+      assert.isUndefined(drawLayeredGraph(graph));
     });
   });
 });
