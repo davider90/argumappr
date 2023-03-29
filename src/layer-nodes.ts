@@ -30,23 +30,26 @@ export default function layerNodes(graph: Graph) {
       negativeEdge
     )!;
 
+    if (minSlackEdge === null) break;
+
     tree.removeEdge(negativeEdge);
     tree.setEdge(minSlackEdge);
     ranks = updateTreeValues(graph, tree, ranks, minSlackEdge);
 
     loopCount++;
   }
-  normalize(tree, ranks);
+  normalize(graph, ranks);
   // balance(graph);
   return ranks;
 }
 
-export function normalize(tree: Graph, ranks: RankTable) {
+export function normalize(graph: Graph, ranks: RankTable) {
   const smallestRank = ranks.getSmallestRank();
 
-  tree.nodes().forEach((node) => {
+  graph.nodes().forEach((node) => {
     const rank = ranks.getRankNumber(node)!;
     ranks.set(node, rank + smallestRank);
+    graph.node(node).y = rank + smallestRank + 5;
   });
 }
 
@@ -134,9 +137,11 @@ export function getClosestCommonAncestor(
 export function getFeasibleTree(graph: Graph) {
   const ranks = setRanks(graph);
   const tree = getTightTree(graph, ranks);
+  if (graph.edgeCount() === 0) return { tree, ranks };
 
   while (tree.nodeCount() < graph.nodeCount()) {
     const { minSlackEdge, minSlack } = getMinSlack(graph, tree, ranks);
+    if (minSlackEdge === null) break;
     const { v, w } = minSlackEdge!;
     let delta: number;
     let newNode: NodeId;
@@ -385,7 +390,7 @@ export class NegativeCutValueEdgeIterator {
   }
 
   private checkCutValue() {
-    if (this.index === this.tree.edges().length) return false;
+    if (this.index === this.tree.edgeCount()) return false;
 
     const edge = this.tree.edges()[this.index];
     const cutValue = this.tree.edge(edge)!.cutValue;
@@ -394,10 +399,12 @@ export class NegativeCutValueEdgeIterator {
   }
 
   hasNext() {
+    if (this.tree.edgeCount() === 0) return false;
+
     const startIndex = this.index;
 
     while (!this.checkCutValue()) {
-      this.index = (this.index + 1) % this.tree.edges().length;
+      this.index = (this.index + 1) % this.tree.edgeCount();
       if (this.index === startIndex) return false;
     }
 
