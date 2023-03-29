@@ -147,8 +147,8 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
   const inputGraphLabel = inputGraph.graph() as any;
   const layoutGraphLabel = layoutGraph.graph() as any;
 
-  inputGraphLabel.width = layoutGraphLabel.width;
-  inputGraphLabel.height = layoutGraphLabel.height;
+  // inputGraphLabel.width = layoutGraphLabel.width;
+  // inputGraphLabel.height = layoutGraphLabel.height;
 }
 
 export function buildLayoutGraph(inputGraph: Graph) {
