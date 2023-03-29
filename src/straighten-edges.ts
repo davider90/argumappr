@@ -13,17 +13,20 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
   const leftBottomBiasedGraph = buildSimpleGraph(graph);
   const rightBottomBiasedGraph = buildSimpleGraph(graph);
 
-  markConflicts(graph, graphMatrix);
+  markConflicts(leftTopBiasedGraph, graphMatrix);
+  markConflicts(rightTopBiasedGraph, graphMatrix);
+  markConflicts(leftBottomBiasedGraph, graphMatrix);
+  markConflicts(rightBottomBiasedGraph, graphMatrix);
 
   alignVertically(leftTopBiasedGraph, graphMatrix, "left-right top-bottom");
   alignVertically(rightTopBiasedGraph, graphMatrix, "right-left top-bottom");
   alignVertically(leftBottomBiasedGraph, graphMatrix, "left-right bottom-top");
   alignVertically(rightBottomBiasedGraph, graphMatrix, "right-left bottom-top");
 
-  compactHorizontally(leftTopBiasedGraph, graphMatrix, 0);
-  compactHorizontally(rightTopBiasedGraph, graphMatrix, 0);
-  compactHorizontally(leftBottomBiasedGraph, graphMatrix, 0);
-  compactHorizontally(rightBottomBiasedGraph, graphMatrix, 0);
+  compactHorizontally(leftTopBiasedGraph, graphMatrix, 5);
+  compactHorizontally(rightTopBiasedGraph, graphMatrix, 5);
+  compactHorizontally(leftBottomBiasedGraph, graphMatrix, 5);
+  compactHorizontally(rightBottomBiasedGraph, graphMatrix, 5);
 
   const biasedGraphs = [
     leftTopBiasedGraph,
@@ -90,6 +93,10 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
 }
 
 function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
+  graph.edges().forEach((edge) => {
+    graph.setEdge(edge, { conflicted: false });
+  });
+
   for (let i = 1; i < graphMatrix.length - 1; i++) {
     const layer = graphMatrix[i + 1];
     let predecessor0Index = 0;
@@ -106,7 +113,7 @@ function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
         if (
           false // TODO: check if node is a dummy node (not yet implemented in layering step)
         ) {
-          const predecessor = graph.predecessors(node0)[0];
+          const predecessor = graph.predecessors(node0)![0];
           predecessor1Index = graphMatrix[i].indexOf(predecessor);
         }
 
@@ -162,10 +169,10 @@ function alignVertically(
     ) {
       const node = layer[j];
       const neighbors = topBias
-        ? graph.predecessors(node)
-        : graph.successors(node);
+        ? graph.predecessors(node)!
+        : graph.successors(node)!;
 
-      if (!!neighbors) {
+      if (!!neighbors.length) {
         const leftNeighborIndex = Math.floor(neighbors.length / 2);
         const rightNeighborIndex = Math.ceil(neighbors.length / 2);
 
@@ -174,11 +181,11 @@ function alignVertically(
           leftBias ? k <= rightNeighborIndex : k >= leftNeighborIndex;
           leftBias ? k++ : k--
         ) {
-          if (graph.node(node).nextBlockNode === node) {
+          if (graph.node(node).nextBlockNode === node && !!neighbors[k]) {
             const neighbor = neighbors[k];
             const edgeIsConflicted: boolean | undefined = graph.edge(
-              neighbor,
-              node
+              topBias ? neighbor : node,
+              topBias ? node : neighbor
             ).conflicted;
             const alignmentDoesNotOverlap = leftBias
               ? lastNeighborIndex < k
@@ -247,6 +254,7 @@ function placeBlock(
   if (graph.node(node).x === undefined) {
     appendNodeValues(graph, node, { x: 0 });
     let currentNode = node;
+    let loopIsStuck = false; // TODO: investigate why this is necessary
 
     do {
       const layerIndex = graphMatrix.findIndex((layer) =>
@@ -285,6 +293,13 @@ function placeBlock(
         }
 
         currentNode = graph.node(currentNode).nextBlockNode;
+      } else {
+        // TODO: investigate why this is necessary
+        if (loopIsStuck) {
+          loopIsStuck = false;
+          break;
+        }
+        loopIsStuck = true;
       }
     } while (currentNode !== node);
   }
