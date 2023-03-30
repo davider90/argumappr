@@ -1,0 +1,4 @@
+{
+  "tsconfig": "./tsconfig.esm.json",
+  "entryPoints": ["../src/*.ts"]
+}
