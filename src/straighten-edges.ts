@@ -254,7 +254,6 @@ function placeBlock(
   if (graph.node(node).x === undefined) {
     appendNodeValues(graph, node, { x: 0 });
     let currentNode = node;
-    let loopIsStuck = false; // TODO: investigate why this is necessary
 
     do {
       const layerIndex = graphMatrix.findIndex((layer) =>
@@ -291,16 +290,8 @@ function placeBlock(
           const newVX = Math.max(nodeX, previousNodeX + delta);
           graph.node(node).x = newVX;
         }
-
-        currentNode = graph.node(currentNode).nextBlockNode;
-      } else {
-        // TODO: investigate why this is necessary
-        if (loopIsStuck) {
-          loopIsStuck = false;
-          break;
-        }
-        loopIsStuck = true;
       }
+      currentNode = graph.node(currentNode).nextBlockNode;
     } while (currentNode !== node);
   }
 }
