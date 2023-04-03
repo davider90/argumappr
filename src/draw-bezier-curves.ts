@@ -1,5 +1,10 @@
 import { Graph } from "graphlib";
 
+/**
+ * @see https://javascript.info/bezier-curve
+ *
+ * @param graph A graphlib graph object.
+ */
 function drawBezierCurves(graph: Graph) {
   graph.edges().forEach((edge) => {
     const { v, w } = edge;
