@@ -4,6 +4,7 @@ import layerNodes from "./layer-nodes";
 import minimiseCrossings from "./minimise-crossings";
 import straightenEdges from "./straighten-edges";
 import { buildLayoutGraph, updateInputGraph } from "./utils";
+import drawBezierCurves from "./draw-bezier-curves";
 
 /**
  * Produces a hierarchical layout of a directed graph. The algorithm is based on
@@ -19,10 +20,12 @@ function drawLayeredGraph(graph: Graph) {
 
   const layoutGraph = buildLayoutGraph(graph);
 
-  const originalEdges = removeCycles(layoutGraph);
-  const ranks = layerNodes(layoutGraph);
-  const graphMatrix = minimiseCrossings(layoutGraph, ranks);
-  straightenEdges(layoutGraph, graphMatrix);
+  const originalEdges = removeCycles(layoutGraph); // Step 1
+  const ranks = layerNodes(layoutGraph); // Step 2
+  const graphMatrix = minimiseCrossings(layoutGraph, ranks); // Step 3
+  straightenEdges(layoutGraph, graphMatrix); // Step 4
+
+  drawBezierCurves(layoutGraph);
 
   originalEdges.deletedLoops.forEach((edge) => {
     layoutGraph.setEdge(edge);
