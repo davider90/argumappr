@@ -241,7 +241,7 @@ export function getTightTree(graph: Graph, ranks: RankTable) {
   return tightTree;
 }
 
-export function setCutValues(graph: Graph, tree: Graph, ranks: RankTable) {
+export function setCutValues(graph: Graph, tree: Graph) {
   const rootNode = graph.nodes()[0];
   const stack: NodeId[] = [];
 
@@ -328,7 +328,7 @@ export function postorderSetCutValues(
       const connectedNodeType = getConnectedNode(node, edge).nodeType;
       const edgeCutValue = tree.edge(edge)?.cutValue;
 
-      if (!!edgeCutValue) {
+      if (edgeCutValue) {
         cutValue += edgeCutValue - 1;
       } else if (connectedNodeType === parentNodeType) {
         cutValue++;
