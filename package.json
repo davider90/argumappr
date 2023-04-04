@@ -35,7 +35,10 @@
     "@types/chai": "^4.3.4",
     "@types/graphlib": "^2.1.8",
     "@types/mocha": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^5.57.1",
+    "@typescript-eslint/parser": "^5.57.1",
     "chai": "^4.3.7",
+    "eslint": "^8.37.0",
     "mocha": "^10.2.0",
     "prettier": "^2.8.2",
     "ts-node": "^10.9.1",
@@ -45,5 +48,10 @@
   "dependencies": {
     "graphlib": "^2.1.8"
   },
-  "prettier": {}
+  "prettier": {},
+  "eslintConfig": {
+    "extends": [
+      "./configs/.eslintrc.json"
+    ]
+  }
 }
