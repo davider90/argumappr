@@ -42,6 +42,7 @@ describe("Project", () => {
 
     const graph = new graphlib.Graph();
     graph.setDefaultNodeLabel(() => ({}));
+    graph.setDefaultEdgeLabel(() => ({}));
 
     graph.setNode("a");
     graph.setNode("b");

@@ -137,7 +137,7 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
     const inputLabel = inputGraph.edge(edge);
     const layoutLabel = layoutGraph.edge(edge);
 
-    // inputLabel.points = layoutLabel.points;
+    inputLabel.points = layoutLabel.points;
     if (!!layoutLabel?.x) {
       inputLabel.x = layoutLabel.x;
       inputLabel.y = layoutLabel.y;
