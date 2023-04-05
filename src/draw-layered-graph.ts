@@ -20,6 +20,7 @@ function drawLayeredGraph(graph: Graph) {
 
   const layoutGraph = buildLayoutGraph(graph);
 
+  // Primary algorithm steps
   const originalEdges = removeCycles(layoutGraph); // Step 1
   const ranks = layerNodes(layoutGraph); // Step 2
   const graphMatrix = minimiseCrossings(layoutGraph, ranks); // Step 3
