@@ -65,7 +65,7 @@ export function updateTreeValues(
 
   if (commonAncestor === rootNode) {
     const newRanks = setRanks(tree);
-    setCutValues(graph, tree, newRanks);
+    setCutValues(graph, tree);
     return newRanks;
   }
 
@@ -164,7 +164,7 @@ export function getFeasibleTree(graph: Graph) {
     }
   }
 
-  setCutValues(graph, tree, ranks);
+  setCutValues(graph, tree);
 
   return { tree, ranks };
 }
