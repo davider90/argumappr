@@ -1,5 +1,5 @@
 import { Edge, Graph as graphlibGraph, GraphOptions } from "graphlib";
-import { NodeId } from "../utils";
+import { NodeId } from "./utils";
 
 class Graph extends graphlibGraph {
   constructor(options?: GraphOptions) {
