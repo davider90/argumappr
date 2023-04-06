@@ -16,6 +16,8 @@ import { NodeId, RankTable, appendNodeValues } from "./utils";
  * @param ranks A ranking of the nodes in the graph.
  */
 export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
+  splitNonTightEdges(graph, ranks);
+
   const graphMatrix = readRankTable(ranks);
   let crossingCount = countTotalCrossings(graph, graphMatrix);
 
@@ -36,6 +38,38 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
   }
 
   return graphMatrix;
+}
+
+/**
+ * Splits non-tight edges into a series of tight edges by inserting dummy nodes
+ * at each rank between the source and target of the edge.
+ *
+ * @param graph A graphlib graph object.
+ * @param ranks A ranking of the nodes in the graph.
+ */
+function splitNonTightEdges(graph: Graph, ranks: RankTable) {
+  graph.edges().forEach((edge) => {
+    const { v, w } = edge;
+    const vRankNumber = ranks.getRankNumber(v)!;
+    const wRankNumber = ranks.getRankNumber(w)!;
+    let i = 0;
+    let previousNodeId = v;
+
+    for (let j = vRankNumber + 1; j < wRankNumber; j++) {
+      const dummyNodeId = `${v}-${w}-${i}`;
+
+      graph.setNode(dummyNodeId, { isDummyNode: true });
+      graph.setEdge(previousNodeId, dummyNodeId);
+
+      i++;
+      previousNodeId = dummyNodeId;
+    }
+
+    if (i > 0) {
+      graph.setEdge(previousNodeId, w);
+      graph.removeEdge(edge);
+    }
+  });
 }
 
 /**
@@ -107,7 +141,7 @@ function readRankTable(ranks: RankTable) {
   let rankNumber = 0;
   let layer = ranks.getRankNodes(rankNumber);
 
-  while (!!layer) {
+  while (layer) {
     graphMatrix[rankNumber] = [];
 
     layer.forEach((_, node) => {
