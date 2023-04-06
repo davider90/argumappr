@@ -1,7 +1,8 @@
 import "mocha";
 import { assert } from "chai";
+
 import straightenEdges from "../src/straighten-edges";
-import Graph from "./graph";
+import Graph from "../src/graph";
 import { NodeId } from "../src/utils";
 
 describe("Straighten Edges", () => {

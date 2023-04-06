@@ -26,7 +26,7 @@ class Graph extends graphlibGraph {
    * @returns The graph, allowing this to be chained with other functions.
    */
   override removeEdge(v: NodeId | Edge, ...wAndName: string[]) {
-    if (wAndName) {
+    if (wAndName.length) {
       const sourceNode = v as NodeId;
       const [w, name] = wAndName as [NodeId, string];
 

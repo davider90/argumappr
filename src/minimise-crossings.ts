@@ -1,4 +1,5 @@
-import { Edge, Graph } from "graphlib";
+import { Edge } from "graphlib";
+import Graph from "./graph";
 import { NodeId, RankTable, appendNodeValues } from "./utils";
 
 /**

@@ -1,10 +1,9 @@
 import "mocha";
 import { assert } from "chai";
 
-import project from "../src/index";
 import npmPackage from "../src/index";
 
-const { graphlib, drawLayeredGraph } = project;
+const { Graph, drawLayeredGraph } = npmPackage;
 
 describe("Project", () => {
   describe("NPM Package", () => {
@@ -12,26 +11,12 @@ describe("Project", () => {
       assert.isObject(npmPackage);
     });
 
-    it("should have a graphLib property", () => {
-      assert.property(npmPackage, "graphlib");
+    it("should have a graph property", () => {
+      assert.property(npmPackage, "Graph");
     });
 
     it("should have a drawLayeredGraph property", () => {
       assert.property(npmPackage, "drawLayeredGraph");
-    });
-  });
-
-  describe("Graphlib", () => {
-    it("should be an object", () => {
-      assert.isObject(graphlib);
-    });
-
-    it("should have a Graph property", () => {
-      assert.property(graphlib, "Graph");
-    });
-
-    it("Graph should be a class (function)", () => {
-      assert.isFunction(graphlib.Graph);
     });
   });
 
@@ -40,7 +25,7 @@ describe("Project", () => {
       assert.isFunction(drawLayeredGraph);
     });
 
-    const graph = new graphlib.Graph();
+    const graph = new Graph();
     graph.setDefaultNodeLabel(() => ({}));
     graph.setDefaultEdgeLabel(() => ({}));
 

@@ -1,8 +1,9 @@
 import "mocha";
 import { assert } from "chai";
 
-import { alg, Graph } from "graphlib";
+import { alg } from "graphlib";
 
+import Graph from "../src/graph";
 import removeCycles, {
   getMaxNode,
   greedilyGetFS,

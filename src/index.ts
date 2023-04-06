@@ -1,4 +1,9 @@
-import graphlib from "graphlib";
+import Graph from "./graph";
 import drawLayeredGraph from "./draw-layered-graph";
 
-export default { graphlib, drawLayeredGraph };
+const project = {
+  Graph,
+  drawLayeredGraph,
+};
+
+export default project;

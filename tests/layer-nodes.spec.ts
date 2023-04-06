@@ -1,8 +1,9 @@
 import "mocha";
 import { assert } from "chai";
 
-import { Edge, Graph } from "graphlib";
+import { Edge } from "graphlib";
 
+import Graph from "../src/graph";
 import layerNodes, { setRanks, getTightTree } from "../src/layer-nodes";
 import { RankTable } from "../src/utils";
 
