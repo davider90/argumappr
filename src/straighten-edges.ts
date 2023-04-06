@@ -1,4 +1,4 @@
-import { Graph } from "graphlib";
+import Graph from "./graph";
 import { NodeId, appendNodeValues, buildSimpleGraph } from "./utils";
 
 type Ordering =

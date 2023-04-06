@@ -1,4 +1,4 @@
-import { Graph } from "graphlib";
+import Graph from "./graph";
 import removeCycles from "./remove-cycles";
 import layerNodes from "./layer-nodes";
 import minimiseCrossings from "./minimise-crossings";

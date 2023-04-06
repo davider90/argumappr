@@ -1,7 +1,7 @@
 import "mocha";
 import { assert } from "chai";
 
-import { Graph } from "graphlib";
+import Graph from "./graph";
 
 import minimiseCrossings, {
   countCrossings,
