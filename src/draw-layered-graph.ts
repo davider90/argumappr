@@ -26,18 +26,29 @@ function drawLayeredGraph(graph: Graph) {
   const graphMatrix = minimiseCrossings(layoutGraph, ranks); // Step 3
   straightenEdges(layoutGraph, graphMatrix); // Step 4
 
-  drawBezierCurves(layoutGraph);
+  // Remove dummy nodes
+  const dummyNodes = layoutGraph
+    .nodes()
+    .filter((node) => graph.node(node).isDummyNode);
+  dummyNodes.forEach((node) => {
+    const parent = layoutGraph.predecessors(node)![0];
+    const child = layoutGraph.successors(node)![0];
 
+    layoutGraph.removeNode(node);
+    layoutGraph.setEdge(parent, child);
+  });
+
+  // Restore original edges
   originalEdges.deletedLoops.forEach((edge) => {
     layoutGraph.setEdge(edge);
   });
-
   originalEdges.reversedEdges.forEach((edge) => {
     const { v, w } = edge;
     layoutGraph.removeEdge(v, w);
     layoutGraph.setEdge(w, v);
   });
 
+  drawBezierCurves(layoutGraph);
   updateInputGraph(graph, layoutGraph);
 }
 
