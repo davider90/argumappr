@@ -42,12 +42,12 @@ class Graph extends graphlibGraph {
     return this;
   }
 
-  setCompoundNode(node: NodeId, edge: Edge) {
+  setConjunctNode(node: NodeId, edge: Edge) {
     let vParentNode = this.parent(edge.v);
 
     if (!vParentNode) {
       vParentNode = `-> ${edge.w}`;
-      this.setNode(vParentNode, { isCompoundNode: true });
+      this.setNode(vParentNode, { isConjunctNode: true });
     }
 
     this.setParent(node, vParentNode);
