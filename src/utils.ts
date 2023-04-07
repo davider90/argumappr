@@ -15,12 +15,12 @@ export class RankTable {
     const oldRankNumber = this.getRankNumber(node);
     const existingRankEntries = this.getRankNodes(rank);
 
-    if (!!oldRankNumber) {
+    if (oldRankNumber) {
       const oldRank = this.getRankNodes(oldRankNumber)!;
       oldRank.delete(node);
     }
 
-    if (!!existingRankEntries) {
+    if (existingRankEntries) {
       existingRankEntries!.set(node, true);
     } else {
       const newRankEntry = new Map<NodeId, true>([[node, true]]);
@@ -44,6 +44,10 @@ export class RankTable {
 
   getSmallestRank() {
     return Math.min(...this.rankToNode.keys());
+  }
+
+  getLargestRank() {
+    return Math.max(...this.rankToNode.keys());
   }
 }
 
@@ -138,7 +142,7 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
     const layoutLabel = layoutGraph.edge(edge);
 
     inputLabel.points = layoutLabel.points;
-    if (!!layoutLabel?.x) {
+    if (layoutLabel?.x) {
       inputLabel.x = layoutLabel.x;
       inputLabel.y = layoutLabel.y;
     }
