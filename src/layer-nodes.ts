@@ -1,9 +1,7 @@
 import { Edge, Graph } from "graphlib";
-import { RankTable } from "./utils";
+import { NodeId, RankTable } from "./utils";
 
 const MAX_LOOPS = 100;
-
-type NodeId = string;
 
 /**
  * Assigns all nodes of the input graph to optimal ranks and returns the layers.
@@ -38,9 +36,50 @@ export default function layerNodes(graph: Graph) {
 
     loopCount++;
   }
+
   normalize(graph, ranks);
-  // balance(graph);
+  balance(graph, ranks);
+
   return ranks;
+}
+
+export function balance(graph: Graph, ranks: RankTable) {
+  graph.nodes().forEach((node) => {
+    const inDegree = (graph.inEdges(node) || []).length;
+    const outDegree = (graph.outEdges(node) || []).length;
+
+    if (inDegree === outDegree) {
+      const parentsRanks = (graph.predecessors(node) || []).map(
+        (parent) => ranks.getRankNumber(parent)!
+      );
+      const childrenRanks = (graph.successors(node) || []).map(
+        (child) => ranks.getRankNumber(child)!
+      );
+      const maxParentRank = Math.max(...parentsRanks);
+      const minChildRank = Math.min(...childrenRanks);
+
+      if (minChildRank - maxParentRank > 2) {
+        const startRankNumber = parentsRanks.length > 0 ? maxParentRank + 1 : 0;
+        const endRankNumber =
+          childrenRanks.length > 0 ? minChildRank - 1 : ranks.getLargestRank();
+        let smallestFeasibleRankNumber = ranks.getRankNumber(node)!;
+        let smallestFeasibleRankSize = ranks.getRankNodes(
+          smallestFeasibleRankNumber
+        )!.size;
+
+        for (let i = startRankNumber; i <= endRankNumber; i++) {
+          const iRankSize = ranks.getRankNodes(i)!.size;
+
+          if (iRankSize < smallestFeasibleRankSize) {
+            smallestFeasibleRankNumber = i;
+            smallestFeasibleRankSize = iRankSize;
+          }
+        }
+
+        ranks.set(node, smallestFeasibleRankNumber);
+      }
+    }
+  });
 }
 
 export function normalize(graph: Graph, ranks: RankTable) {
