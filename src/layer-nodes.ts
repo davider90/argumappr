@@ -38,8 +38,8 @@ export default function layerNodes(graph: Graph) {
     loopCount++;
   }
 
-  normalize(graph, ranks);
-  balance(graph, ranks);
+  normalizeRanks(graph, ranks);
+  balanceLayering(graph, ranks);
   splitConjunctNodes(graph, conjunctNodes);
 
   return ranks;
@@ -102,7 +102,7 @@ export function splitConjunctNodes(graph: Graph, conjunctNodes: NodeId[]) {
   });
 }
 
-export function balance(graph: Graph, ranks: RankTable) {
+export function balanceLayering(graph: Graph, ranks: RankTable) {
   graph.nodes().forEach((node) => {
     const inDegree = (graph.inEdges(node) || []).length;
     const outDegree = (graph.outEdges(node) || []).length;
@@ -141,7 +141,7 @@ export function balance(graph: Graph, ranks: RankTable) {
   });
 }
 
-export function normalize(graph: Graph, ranks: RankTable) {
+export function normalizeRanks(graph: Graph, ranks: RankTable) {
   const smallestRank = ranks.getSmallestRank();
 
   graph.nodes().forEach((node) => {
