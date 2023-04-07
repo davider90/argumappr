@@ -104,15 +104,10 @@ function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
 
     for (let j = 0; j < layer.length; j++) {
       const node0 = layer[j];
-      if (
-        j === layer.length - 1 ||
-        false // TODO: check if node is a dummy node (not yet implemented in layering step)
-      ) {
+      if (j === layer.length - 1 || graph.node(node0).isDummyNode) {
         let predecessor1Index = graphMatrix[i].length - 1;
 
-        if (
-          false // TODO: check if node is a dummy node (not yet implemented in layering step)
-        ) {
+        if (graph.node(node0).isDummyNode) {
           const predecessor = graph.predecessors(node0)![0];
           predecessor1Index = graphMatrix[i].indexOf(predecessor);
         }
@@ -172,7 +167,7 @@ function alignVertically(
         ? graph.predecessors(node)!
         : graph.successors(node)!;
 
-      if (!!neighbors.length) {
+      if (neighbors.length) {
         const leftNeighborIndex = Math.floor(neighbors.length / 2);
         const rightNeighborIndex = Math.ceil(neighbors.length / 2);
 
