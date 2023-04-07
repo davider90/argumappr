@@ -38,21 +38,6 @@ function drawLayeredGraph(graph: Graph) {
     layoutGraph.setEdge(w, v);
   });
 
-  layoutGraph.edges().forEach((edge) => {
-    const { v, w } = edge;
-    const vData = layoutGraph.node(v);
-    const wData = layoutGraph.node(w);
-    const edgeData = layoutGraph.edge(v, w);
-    layoutGraph.setEdge(edge, {
-      ...edgeData,
-      points: [
-        { x: vData.x, y: vData.y },
-        { x: (vData.x + wData.x) / 2, y: (vData.y + wData.y) / 2 },
-        { x: wData.x, y: wData.y },
-      ],
-    });
-  });
-
   updateInputGraph(graph, layoutGraph);
 }
 
