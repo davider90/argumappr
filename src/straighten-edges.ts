@@ -104,10 +104,10 @@ function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
 
     for (let j = 0; j < layer.length; j++) {
       const node0 = layer[j];
-      if (j === layer.length - 1 || graph.node(node0).isDummyNode) {
+      if (j === layer.length - 1 || graph.node(node0)?.isDummyNode) {
         let predecessor1Index = graphMatrix[i].length - 1;
 
-        if (graph.node(node0).isDummyNode) {
+        if (graph.node(node0)?.isDummyNode) {
           const predecessor = graph.predecessors(node0)![0];
           predecessor1Index = graphMatrix[i].indexOf(predecessor);
         }

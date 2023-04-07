@@ -92,7 +92,7 @@ export function splitConjunctNodes(graph: Graph, conjunctNodes: NodeId[]) {
       graph.setParent(subnode, node);
     });
 
-    originalEdges.forEach((edge) => {
+    originalEdges.forEach((edge: Edge) => {
       graph.setEdge(edge);
     });
 
