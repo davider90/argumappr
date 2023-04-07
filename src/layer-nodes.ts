@@ -13,6 +13,7 @@ const MAX_LOOPS = 100;
  * @returns A rank table.
  */
 export default function layerNodes(graph: Graph) {
+  const conjunctNodes = mergeConjunctNodes(graph);
   const treeAndRanks = getFeasibleTree(graph);
   const { tree } = treeAndRanks;
   let { ranks } = treeAndRanks;
@@ -39,8 +40,66 @@ export default function layerNodes(graph: Graph) {
 
   normalize(graph, ranks);
   balance(graph, ranks);
+  splitConjunctNodes(graph, conjunctNodes);
 
   return ranks;
+}
+
+export function mergeConjunctNodes(graph: Graph) {
+  const conjunctNodes = graph
+    .nodes()
+    .filter((node) => graph.node(node).isConjunctNode);
+
+  conjunctNodes.forEach((node) => {
+    const originalEdges: Edge[] = [];
+    const subnodeData: { [node: NodeId]: any } = {};
+    const subnodes = graph.children(node);
+
+    subnodes.forEach((subnode) => {
+      const inEdges = graph.inEdges(subnode) || [];
+      const outEdges = graph.outEdges(subnode) || [];
+
+      inEdges.forEach((inEdge) => {
+        const { v } = inEdge;
+        graph.setEdge(v, node);
+        originalEdges.push(inEdge);
+      });
+
+      outEdges.forEach((outEdge) => {
+        const { w } = outEdge;
+        graph.setEdge(node, w);
+        originalEdges.push(outEdge);
+      });
+
+      subnodeData[subnode] = graph.node(subnode);
+      graph.removeNode(subnode);
+    });
+
+    graph.node(node).subnodeData = subnodeData;
+    graph.node(node).originalEdges = originalEdges;
+  });
+
+  return conjunctNodes;
+}
+
+export function splitConjunctNodes(graph: Graph, conjunctNodes: NodeId[]) {
+  conjunctNodes.forEach((node) => {
+    const subnodeData = graph.node(node).subnodeData;
+    const originalEdges = graph.node(node).originalEdges;
+
+    Object.keys(subnodeData).forEach((subnode) => {
+      graph.setNode(subnode, subnodeData[subnode]);
+      graph.setParent(subnode, node);
+    });
+
+    originalEdges.forEach((edge) => {
+      graph.setEdge(edge);
+    });
+
+    graph.nodeEdges(node)!.forEach((edge) => {
+      graph.removeEdge(edge);
+    });
+  });
 }
 
 export function balance(graph: Graph, ranks: RankTable) {
