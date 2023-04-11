@@ -14,8 +14,8 @@ function drawBezierCurves(graph: Graph) {
       y: graph.node(v).y,
     };
     const controlPoint1 = {
-      x: graph.node(v).x,
-      y: graph.node(w).y,
+      x: graph.node(w).x,
+      y: graph.node(v).y,
     };
     const controlPoint2 = {
       x: graph.node(w).x,
