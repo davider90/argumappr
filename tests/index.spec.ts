@@ -42,5 +42,24 @@ describe("Project", () => {
     it("should return void", () => {
       assert.isUndefined(drawLayeredGraph(graph));
     });
+
+    it("test2", () => {
+      const g = new Graph();
+      g.setDefaultNodeLabel(() => ({}));
+      g.setDefaultEdgeLabel(() => ({}));
+
+      g.setNode("a");
+      g.setNode("b");
+      g.setNode("c");
+      g.setNode("d");
+      g.setNode("e");
+
+      g.setEdge("a", "b");
+      g.setEdge("b", "c");
+      g.setEdge("b", "d");
+      g.setEdge("e", "d");
+
+      drawLayeredGraph(g);
+    });
   });
 });

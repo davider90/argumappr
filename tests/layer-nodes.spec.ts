@@ -55,6 +55,24 @@ describe("Node Layer Assignment", () => {
     const ranks = layerNodes(g);
     console.profileEnd("layerNodes");
   });
+
+  it("test2", () => {
+    const g = new Graph();
+    g.setDefaultNodeLabel(() => ({}));
+
+    g.setNode("a");
+    g.setNode("b");
+    g.setNode("c");
+    g.setNode("d");
+    g.setNode("e");
+
+    g.setEdge("a", "b");
+    g.setEdge("a", "c");
+    g.setEdge("a", "d");
+    g.setEdge("e", "c");
+
+    layerNodes(g);
+  });
   // describe("Initial Ranking", () => {
   //   it("should be a function", () => {
   //     assert.isFunction(setRanks);
