@@ -2,6 +2,7 @@ import { Edge, Graph } from "graphlib";
 import { NodeId, RankTable } from "./utils";
 
 const MAX_LOOPS = 100;
+const NODE_Y_SPACING = 325;
 
 /**
  * Assigns all nodes of the input graph to optimal ranks and returns the layers.
@@ -29,7 +30,9 @@ export default function layerNodes(graph: Graph) {
       negativeEdge
     )!;
 
-    if (minSlackEdge === null) break;
+    if (minSlackEdge === null) {
+      console.warn("Non-tree min slack edge did not exist");
+    }
 
     tree.removeEdge(negativeEdge);
     tree.setEdge(minSlackEdge);
@@ -146,8 +149,8 @@ export function normalizeRanks(graph: Graph, ranks: RankTable) {
 
   graph.nodes().forEach((node) => {
     const rank = ranks.getRankNumber(node)!;
-    ranks.set(node, rank + smallestRank);
-    graph.node(node).y = rank + smallestRank + 5;
+    if (smallestRank !== 0) ranks.set(node, rank - smallestRank);
+    graph.node(node).y = (rank - smallestRank) * NODE_Y_SPACING;
   });
 }
 
@@ -239,7 +242,10 @@ export function getFeasibleTree(graph: Graph) {
 
   while (tree.nodeCount() < graph.nodeCount()) {
     const { minSlackEdge, minSlack } = getMinSlack(graph, tree, ranks);
-    if (minSlackEdge === null) break;
+    if (minSlackEdge === null) {
+      console.warn("Min slack edge in feasible tree does not exist");
+      break;
+    }
     const { v, w } = minSlackEdge!;
     let delta: number;
     let newNode: NodeId;
@@ -491,6 +497,10 @@ export class NegativeCutValueEdgeIterator {
     if (this.index === this.tree.edgeCount()) return false;
 
     const edge = this.tree.edges()[this.index];
+    if (!this.tree.edge(edge)) {
+      console.warn("Undefined cut value", this.tree);
+      return false;
+    }
     const cutValue = this.tree.edge(edge)!.cutValue;
 
     return cutValue < 0;
