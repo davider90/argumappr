@@ -15,7 +15,7 @@ export class RankTable {
     const oldRankNumber = this.getRankNumber(node);
     const existingRankEntries = this.getRankNodes(rank);
 
-    if (oldRankNumber) {
+    if (oldRankNumber !== undefined) {
       const oldRank = this.getRankNodes(oldRankNumber)!;
       oldRank.delete(node);
     }
@@ -129,6 +129,9 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
     if (inputLabel) {
       inputLabel.x = layoutLabel.x;
       inputLabel.y = layoutLabel.y;
+
+      inputLabel.width = 300;
+      inputLabel.height = 100;
 
       if (layoutGraph.children(node).length) {
         inputLabel.width = layoutLabel.width;
