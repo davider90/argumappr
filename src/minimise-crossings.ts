@@ -61,13 +61,16 @@ function splitNonTightEdges(graph: Graph, ranks: RankTable) {
 
       graph.setNode(dummyNodeId, { isDummyNode: true });
       graph.setEdge(previousNodeId, dummyNodeId);
+      ranks.set(dummyNodeId, j);
 
       i++;
       previousNodeId = dummyNodeId;
     }
 
     if (i > 0) {
-      graph.setEdge(previousNodeId, w);
+      const edgeData = graph.edge(edge)!;
+
+      graph.setEdge(previousNodeId, w, edgeData);
       graph.removeEdge(edge);
     }
   });
