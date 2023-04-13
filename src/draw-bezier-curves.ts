@@ -45,8 +45,13 @@ function drawBezierCurves(graph: Graph) {
     }
 
     const points = [controlPoint0, connectingLine(0.5), controlPoint2];
+    const edgeData = graph.edge(edge);
 
-    graph.edge(edge).points = points;
+    if (edgeData) {
+      graph.edge(edge).points = points;
+    } else {
+      graph.setEdge(edge, { points });
+    }
   });
 }
 
