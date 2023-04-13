@@ -1,6 +1,9 @@
 import Graph from "./graph";
 import { NodeId, appendNodeValues, buildSimpleGraph } from "./utils";
 
+const NODE_WIDTH = 300;
+const NODE_X_SPACING = 50;
+
 type Ordering =
   | "left-right top-bottom"
   | "right-left top-bottom"
@@ -23,10 +26,26 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
   alignVertically(leftBottomBiasedGraph, graphMatrix, "left-right bottom-top");
   alignVertically(rightBottomBiasedGraph, graphMatrix, "right-left bottom-top");
 
-  compactHorizontally(leftTopBiasedGraph, graphMatrix, 5);
-  compactHorizontally(rightTopBiasedGraph, graphMatrix, 5);
-  compactHorizontally(leftBottomBiasedGraph, graphMatrix, 5);
-  compactHorizontally(rightBottomBiasedGraph, graphMatrix, 5);
+  compactHorizontally(
+    leftTopBiasedGraph,
+    graphMatrix,
+    NODE_WIDTH + NODE_X_SPACING
+  );
+  compactHorizontally(
+    rightTopBiasedGraph,
+    graphMatrix,
+    NODE_WIDTH + NODE_X_SPACING
+  );
+  compactHorizontally(
+    leftBottomBiasedGraph,
+    graphMatrix,
+    NODE_WIDTH + NODE_X_SPACING
+  );
+  compactHorizontally(
+    rightBottomBiasedGraph,
+    graphMatrix,
+    NODE_WIDTH + NODE_X_SPACING
+  );
 
   const biasedGraphs = [
     leftTopBiasedGraph,
@@ -94,10 +113,10 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
 
 function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
   graph.edges().forEach((edge) => {
-    graph.setEdge(edge, { conflicted: false });
+    graph.setEdge(edge, { isConflicted: false });
   });
 
-  for (let i = 1; i < graphMatrix.length - 1; i++) {
+  for (let i = 1; i < graphMatrix.length - 2; i++) {
     const layer = graphMatrix[i + 1];
     let predecessor0Index = 0;
     let node1Index = 1;
@@ -120,7 +139,7 @@ function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
             const predecessor = predecessors[k];
 
             if (k < predecessor0Index || k > predecessor1Index) {
-              graph.setEdge(predecessor, node1, { conflicted: true }); // TODO: check if this overwrites vital info
+              graph.setEdge(predecessor, node1, { isConflicted: true }); // TODO: check if this overwrites vital info
             }
           }
 
@@ -147,7 +166,7 @@ function alignVertically(
   });
 
   for (
-    let i = topBias ? 0 : graphMatrix.length - 1;
+    let i = topBias ? 1 : graphMatrix.length - 2;
     topBias ? i < graphMatrix.length : i >= 0;
     topBias ? i++ : i--
   ) {
@@ -164,24 +183,26 @@ function alignVertically(
     ) {
       const node = layer[j];
       const neighbors = topBias
-        ? graph.predecessors(node)!
-        : graph.successors(node)!;
+        ? graph.predecessors(node) || []
+        : graph.successors(node) || [];
 
       if (neighbors.length) {
-        const leftNeighborIndex = Math.floor(neighbors.length / 2);
-        const rightNeighborIndex = Math.ceil(neighbors.length / 2);
+        const biggestNeighborIndex = neighbors.length - 1;
+        const leftNeighborIndex = Math.floor(biggestNeighborIndex / 2);
+        const rightNeighborIndex = Math.ceil(biggestNeighborIndex / 2);
 
         for (
           let k = leftBias ? leftNeighborIndex : rightNeighborIndex;
           leftBias ? k <= rightNeighborIndex : k >= leftNeighborIndex;
           leftBias ? k++ : k--
         ) {
-          if (graph.node(node).nextBlockNode === node && !!neighbors[k]) {
-            const neighbor = neighbors[k];
-            const edgeIsConflicted: boolean | undefined = graph.edge(
+          const neighbor = neighbors[k];
+
+          if (graph.node(node).nextBlockNode === node && neighbor) {
+            const edgeIsConflicted: boolean = graph.edge(
               topBias ? neighbor : node,
               topBias ? node : neighbor
-            ).conflicted;
+            ).isConflicted;
             const alignmentDoesNotOverlap = leftBias
               ? lastNeighborIndex < k
               : lastNeighborIndex > k;
