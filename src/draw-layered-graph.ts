@@ -29,13 +29,14 @@ function drawLayeredGraph(graph: Graph) {
   // Remove dummy nodes
   const dummyNodes = layoutGraph
     .nodes()
-    .filter((node) => graph.node(node).isDummyNode);
+    .filter((node) => layoutGraph.node(node)?.isDummyNode);
   dummyNodes.forEach((node) => {
     const parent = layoutGraph.predecessors(node)![0];
     const child = layoutGraph.successors(node)![0];
+    const edgeData = layoutGraph.node(node).edgeData;
 
     layoutGraph.removeNode(node);
-    layoutGraph.setEdge(parent, child);
+    layoutGraph.setEdge(parent, child, edgeData);
   });
 
   // Restore original edges
