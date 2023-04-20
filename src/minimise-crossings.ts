@@ -1,6 +1,6 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
-import { NodeId, RankTable, appendNodeValues } from "./utils";
+import { NODE_Y_SPACING, NodeId, RankTable, appendNodeValues } from "./utils";
 
 /**
  * Minimises the number of crossings between the ranks of a graph by iteratively
@@ -53,13 +53,20 @@ function splitNonTightEdges(graph: Graph, ranks: RankTable) {
     const { v, w } = edge;
     const vRankNumber = ranks.getRankNumber(v)!;
     const wRankNumber = ranks.getRankNumber(w)!;
+    const vY = graph.node(v)!.y;
+    const edgeData = graph.edge(edge)!;
     let i = 0;
     let previousNodeId = v;
 
     for (let j = vRankNumber + 1; j < wRankNumber; j++) {
       const dummyNodeId = `${v}-${w}-${i}`;
+      const dummyNodeY = vY + (i + 1) * NODE_Y_SPACING;
 
-      graph.setNode(dummyNodeId, { isDummyNode: true });
+      graph.setNode(dummyNodeId, {
+        isDummyNode: true,
+        y: dummyNodeY,
+        edgeData,
+      });
       graph.setEdge(previousNodeId, dummyNodeId);
       ranks.set(dummyNodeId, j);
 
@@ -68,9 +75,7 @@ function splitNonTightEdges(graph: Graph, ranks: RankTable) {
     }
 
     if (i > 0) {
-      const edgeData = graph.edge(edge)!;
-
-      graph.setEdge(previousNodeId, w, edgeData);
+      graph.setEdge(previousNodeId, w);
       graph.removeEdge(edge);
     }
   });

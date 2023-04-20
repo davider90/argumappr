@@ -1,5 +1,7 @@
 import Graph from "./graph";
 
+export const NODE_Y_SPACING = 325;
+
 export type NodeId = string;
 
 export class RankTable {

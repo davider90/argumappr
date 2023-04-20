@@ -1,8 +1,7 @@
 import { Edge, Graph } from "graphlib";
-import { NodeId, RankTable } from "./utils";
+import { NODE_Y_SPACING, NodeId, RankTable } from "./utils";
 
 const MAX_LOOPS = 100;
-const NODE_Y_SPACING = 325;
 
 /**
  * Assigns all nodes of the input graph to optimal ranks and returns the layers.
@@ -466,7 +465,7 @@ export function getMinSlack(graph: Graph, tree: Graph, ranks: RankTable) {
   for (const edge of graph.edges()) {
     const { v, w } = edge;
 
-    if (tree.hasNode(v) && tree.hasNode(w)) continue;
+    if (!(+tree.hasNode(v) ^ +tree.hasNode(w))) continue;
 
     const rankDistance = Math.abs(
       ranks.getRankNumber(v)! - ranks.getRankNumber(w)!
