@@ -2,7 +2,7 @@ import Graph from "./graph";
 import { NodeId, appendNodeValues, buildSimpleGraph } from "./utils";
 
 const NODE_WIDTH = 300;
-const NODE_X_SPACING = 50;
+const NODE_X_SPACING = 100;
 
 type Ordering =
   | "left-right top-bottom"
@@ -12,45 +12,49 @@ type Ordering =
 
 export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
   const leftTopBiasedGraph = buildSimpleGraph(graph);
-  const rightTopBiasedGraph = buildSimpleGraph(graph);
   const leftBottomBiasedGraph = buildSimpleGraph(graph);
+  const rightTopBiasedGraph = buildSimpleGraph(graph);
   const rightBottomBiasedGraph = buildSimpleGraph(graph);
 
   markConflicts(leftTopBiasedGraph, graphMatrix);
-  markConflicts(rightTopBiasedGraph, graphMatrix);
   markConflicts(leftBottomBiasedGraph, graphMatrix);
+  markConflicts(rightTopBiasedGraph, graphMatrix);
   markConflicts(rightBottomBiasedGraph, graphMatrix);
 
   alignVertically(leftTopBiasedGraph, graphMatrix, "left-right top-bottom");
-  alignVertically(rightTopBiasedGraph, graphMatrix, "right-left top-bottom");
   alignVertically(leftBottomBiasedGraph, graphMatrix, "left-right bottom-top");
+  alignVertically(rightTopBiasedGraph, graphMatrix, "right-left top-bottom");
   alignVertically(rightBottomBiasedGraph, graphMatrix, "right-left bottom-top");
 
   compactHorizontally(
     leftTopBiasedGraph,
     graphMatrix,
-    NODE_WIDTH + NODE_X_SPACING
-  );
-  compactHorizontally(
-    rightTopBiasedGraph,
-    graphMatrix,
+    "right",
     NODE_WIDTH + NODE_X_SPACING
   );
   compactHorizontally(
     leftBottomBiasedGraph,
     graphMatrix,
+    "right",
+    NODE_WIDTH + NODE_X_SPACING
+  );
+  compactHorizontally(
+    rightTopBiasedGraph,
+    graphMatrix,
+    "left",
     NODE_WIDTH + NODE_X_SPACING
   );
   compactHorizontally(
     rightBottomBiasedGraph,
     graphMatrix,
+    "left",
     NODE_WIDTH + NODE_X_SPACING
   );
 
   const biasedGraphs = [
     leftTopBiasedGraph,
-    rightTopBiasedGraph,
     leftBottomBiasedGraph,
+    rightTopBiasedGraph,
     rightBottomBiasedGraph,
   ];
   const graphXObjects = biasedGraphs.map((biasedGraph) => {
@@ -166,7 +170,7 @@ function alignVertically(
   });
 
   for (
-    let i = topBias ? 1 : graphMatrix.length - 2;
+    let i = topBias ? 0 : graphMatrix.length - 1;
     topBias ? i < graphMatrix.length : i >= 0;
     topBias ? i++ : i--
   ) {
@@ -174,7 +178,7 @@ function alignVertically(
     let lastNeighborIndex: number;
 
     if (leftBias) lastNeighborIndex = -1;
-    else lastNeighborIndex = layer.length;
+    else lastNeighborIndex = Infinity;
 
     for (
       let j = leftBias ? 0 : layer.length - 1;
@@ -217,12 +221,17 @@ function alignVertically(
                   nextBlockNode: neighborRoot,
                 });
               } else {
-                const nodeRoot = graph.node(node).blockRoot;
-
                 appendNodeValues(graph, node, { nextBlockNode: neighbor });
-                appendNodeValues(graph, neighbor, {
-                  blockRoot: nodeRoot,
-                  nextBlockNode: nodeRoot,
+
+                let blockNode = graph.node(neighbor).nextBlockNode;
+
+                while (graph.node(blockNode).nextBlockNode !== neighbor) {
+                  blockNode = graph.node(blockNode).nextBlockNode;
+                }
+
+                appendNodeValues(graph, blockNode, {
+                  blockRoot: node,
+                  nextBlockNode: node,
                 });
               }
 
@@ -238,15 +247,18 @@ function alignVertically(
 function compactHorizontally(
   graph: Graph,
   graphMatrix: NodeId[][],
+  direction: "left" | "right",
   delta: number
 ) {
+  const defaultShift = direction === "right" ? Infinity : -Infinity;
+
   graph.nodes().forEach((node) => {
-    appendNodeValues(graph, node, { classSink: node, shift: Infinity });
+    appendNodeValues(graph, node, { classSink: node, shift: defaultShift });
   });
 
   graph.nodes().forEach((node) => {
     if (graph.node(node).blockRoot === node) {
-      placeBlock(graph, graphMatrix, node, delta);
+      placeBlock(graph, graphMatrix, node, direction, delta);
     }
   });
 
@@ -255,7 +267,10 @@ function compactHorizontally(
     const vRootSink = graph.node(vRoot).classSink;
     graph.node(node).x = graph.node(vRoot).x;
 
-    if (graph.node(vRootSink).shift < Infinity) {
+    if (
+      (direction === "right" && graph.node(vRootSink).shift < Infinity) ||
+      (direction === "left" && graph.node(vRootSink).shift > -Infinity)
+    ) {
       graph.node(node).x += graph.node(vRootSink).shift;
     }
   });
@@ -265,6 +280,7 @@ function placeBlock(
   graph: Graph,
   graphMatrix: NodeId[][],
   node: NodeId,
+  direction: "left" | "right",
   delta: number
 ) {
   if (graph.node(node).x === undefined) {
@@ -275,13 +291,19 @@ function placeBlock(
       const layerIndex = graphMatrix.findIndex((layer) =>
         layer.includes(currentNode)
       )!;
-      const nodeIndex = graphMatrix[layerIndex].indexOf(currentNode);
+      const layer = graphMatrix[layerIndex];
+      const nodeIndex = layer.indexOf(currentNode);
 
-      if (nodeIndex > 0) {
-        const previousNode = graphMatrix[layerIndex][nodeIndex - 1];
+      if (
+        (direction === "right" && nodeIndex > 0) ||
+        (direction === "left" && nodeIndex < layer.length - 1)
+      ) {
+        const previousNodeIndex =
+          direction === "right" ? nodeIndex - 1 : nodeIndex + 1;
+        const previousNode = layer[previousNodeIndex];
         const previousNodeRoot = graph.node(previousNode).blockRoot;
 
-        placeBlock(graph, graphMatrix, previousNodeRoot, delta);
+        placeBlock(graph, graphMatrix, previousNodeRoot, direction, delta);
 
         if (graph.node(node).classSink === node) {
           appendNodeValues(graph, node, {
@@ -291,19 +313,22 @@ function placeBlock(
 
         const nodeX = graph.node(node).x;
         const previousNodeX = graph.node(previousNodeRoot).x;
+        const sign = direction === "right" ? 1 : -1;
 
         if (
           graph.node(node).classSink !== graph.node(previousNodeRoot).classSink
         ) {
           const previousNodeSink = graph.node(previousNodeRoot).classSink;
-          const shift = Math.min(
+          const pickValue = direction === "right" ? Math.min : Math.max;
+          const shift = pickValue(
             graph.node(previousNodeSink).shift,
-            nodeX - previousNodeX - delta
+            (nodeX - previousNodeX - delta) * sign
           );
 
           appendNodeValues(graph, previousNodeSink, { shift });
         } else {
-          const newVX = Math.max(nodeX, previousNodeX + delta);
+          const pickValue = direction === "right" ? Math.max : Math.min;
+          const newVX = pickValue(nodeX, previousNodeX + delta * sign);
           graph.node(node).x = newVX;
         }
       }
