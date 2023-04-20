@@ -2,6 +2,10 @@ import { Edge } from "graphlib";
 import Graph from "./graph";
 import { buildSimpleGraph, NodeId } from "./utils";
 
+interface EdgeAndLabel extends Edge {
+  label?: any;
+}
+
 /**
  * Removes cycles from the input graph and returns the modified edges. Note
  * that: the input graph is modified in place, cycles are broken by inverting an
@@ -96,18 +100,18 @@ export function getMaxNode(graph: Graph) {
  * @returns The modified edges.
  */
 export function handleEdges(graph: Graph, nodes0: NodeId[], nodes1: NodeId[]) {
-  const deletedLoops: Edge[] = [];
-  const reversedEdges: Edge[] = [];
+  const deletedLoops: EdgeAndLabel[] = [];
+  const reversedEdges: EdgeAndLabel[] = [];
 
   for (const edge of graph.edges()) {
     const deletedLoop = deleteLoop(graph, edge);
-    if (!!deletedLoop) {
+    if (deletedLoop) {
       deletedLoops.push(deletedLoop);
       continue;
     }
 
     const reversedEdge = reverseEdge(graph, nodes0, nodes1, edge);
-    if (!!reversedEdge) reversedEdges.push(reversedEdge);
+    if (reversedEdge) reversedEdges.push(reversedEdge);
   }
 
   return { deletedLoops, reversedEdges };
