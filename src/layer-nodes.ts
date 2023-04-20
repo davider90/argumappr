@@ -465,7 +465,7 @@ export function getMinSlack(graph: Graph, tree: Graph, ranks: RankTable) {
   for (const edge of graph.edges()) {
     const { v, w } = edge;
 
-    if (tree.hasNode(v) !== tree.hasNode(w)) continue;
+    if (tree.hasNode(v) === tree.hasNode(w)) continue;
 
     const rankDistance = Math.abs(
       ranks.getRankNumber(v)! - ranks.getRankNumber(w)!
