@@ -1,6 +1,7 @@
 import { Edge, Graph as graphlibGraph, GraphOptions } from "graphlib";
 import { NodeId } from "./utils";
 
+// TODO: Building doesn't include the type definitions for graphlib. Fix this.
 class Graph extends graphlibGraph {
   constructor(options?: GraphOptions) {
     super(options);
