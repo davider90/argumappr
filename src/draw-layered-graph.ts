@@ -26,6 +26,8 @@ function drawLayeredGraph(graph: Graph) {
   const graphMatrix = minimiseCrossings(layoutGraph, ranks); // Step 3
   straightenEdges(layoutGraph, graphMatrix); // Step 4
 
+  drawBezierCurves(layoutGraph);
+
   // Remove dummy nodes
   const dummyNodes = layoutGraph
     .nodes()
@@ -34,22 +36,26 @@ function drawLayeredGraph(graph: Graph) {
     const parent = layoutGraph.predecessors(node)![0];
     const child = layoutGraph.successors(node)![0];
     const edgeData = layoutGraph.node(node).edgeData;
+    const inEdgePoints = layoutGraph.edge(parent, node).points;
+    const outEdgePoints = layoutGraph.edge(node, child).points;
+    const newPoints = [inEdgePoints[0], inEdgePoints[2], outEdgePoints[2]];
 
     layoutGraph.removeNode(node);
-    layoutGraph.setEdge(parent, child, edgeData);
+    layoutGraph.setEdge(parent, child, { ...edgeData, points: newPoints });
   });
 
   // Restore original edges
   originalEdges.deletedLoops.forEach((edge) => {
-    layoutGraph.setEdge(edge);
+    const { v, w, label, name } = edge;
+    layoutGraph.setEdge(v, w, label, name);
   });
   originalEdges.reversedEdges.forEach((edge) => {
-    const { v, w } = edge;
-    layoutGraph.removeEdge(v, w);
-    layoutGraph.setEdge(w, v);
+    const { v, w, label, name } = edge;
+    const edgeData = layoutGraph.edge(w, v);
+    layoutGraph.removeEdge(w, v);
+    layoutGraph.setEdge(v, w, { ...label, ...edgeData }, name);
   });
 
-  drawBezierCurves(layoutGraph);
   updateInputGraph(graph, layoutGraph);
 }
 
