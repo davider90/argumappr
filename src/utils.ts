@@ -19,7 +19,12 @@ export class RankTable {
 
     if (oldRankNumber !== undefined) {
       const oldRank = this.getRankNodes(oldRankNumber)!;
+
       oldRank.delete(node);
+
+      if (oldRank.size === 0) {
+        this.rankToNode.delete(oldRankNumber);
+      }
     }
 
     if (existingRankEntries) {
