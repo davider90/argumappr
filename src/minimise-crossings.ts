@@ -26,11 +26,13 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
     for (let i = 0; i < graphMatrix.length - 1; i++) {
       const layer = graphMatrix[i];
       sweepLayer(graph, ranks, graphMatrix, layer, "down");
+      reverseEqualBarycenters(graph, layer, graphMatrix[i + 1], "down");
     }
 
     for (let i = graphMatrix.length - 1; i > 0; i--) {
       const layer = graphMatrix[i];
       sweepLayer(graph, ranks, graphMatrix, layer, "up");
+      reverseEqualBarycenters(graph, layer, graphMatrix[i - 1], "up");
     }
 
     const newCrossingCount = countTotalCrossings(graph, graphMatrix);
@@ -39,6 +41,53 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
   }
 
   return graphMatrix;
+}
+
+function reverseEqualBarycenters(
+  graph: Graph,
+  northLayer: NodeId[],
+  southLayer: NodeId[],
+  direction: "down" | "up"
+) {
+  const crossingCount = countCrossings(graph, northLayer, southLayer);
+
+  if (crossingCount === 0) return;
+
+  let targetLayerCopy: NodeId[];
+  let targetLayer: NodeId[];
+  let otherLayer: NodeId[];
+
+  if (direction === "down") {
+    targetLayerCopy = [...southLayer];
+    targetLayer = southLayer;
+    otherLayer = northLayer;
+  } else {
+    targetLayerCopy = [...northLayer];
+    targetLayer = northLayer;
+    otherLayer = southLayer;
+  }
+
+  const barycenters = targetLayerCopy.map(
+    (node) => graph.node(node)!.barycenter
+  );
+
+  for (let i = 0; i < barycenters.length - 1; i++) {
+    const barycenter = barycenters[i];
+    const nextBarycenter = barycenters[i + 1];
+
+    if (barycenter === nextBarycenter) {
+      const node = targetLayerCopy[i];
+      const nextNode = targetLayerCopy[i + 1];
+      targetLayerCopy[i] = nextNode;
+      targetLayerCopy[i + 1] = node;
+    }
+  }
+
+  const newCrossingCount = countCrossings(graph, targetLayerCopy, otherLayer);
+
+  if (newCrossingCount < crossingCount) {
+    targetLayer.splice(0, targetLayer.length, ...targetLayerCopy);
+  }
 }
 
 /**
@@ -97,7 +146,7 @@ function sweepLayer(
   ranks: RankTable,
   graphMatrix: NodeId[][],
   layer: NodeId[],
-  direction: "up" | "down"
+  direction: "down" | "up"
 ) {
   for (let nodeIndex = 0; nodeIndex < layer.length; nodeIndex++) {
     const node = layer[nodeIndex];
@@ -127,16 +176,7 @@ function sweepLayer(
     appendNodeValues(graph, node, { barycenter: neighborsPositionAverage });
   }
 
-  layer.sort((v, w) => {
-    if (!v.length || !w.length) return 0;
-
-    const vBarycenter = graph.node(v).barycenter;
-    const wBarycenter = graph.node(w).barycenter;
-
-    if (vBarycenter < wBarycenter) return -1;
-    if (vBarycenter > wBarycenter) return 1;
-    return 0;
-  });
+  layer.sort((v, w) => graph.node(v)!.barycenter - graph.node(w)!.barycenter);
 }
 
 /**
@@ -175,8 +215,8 @@ export function countTotalCrossings(graph: Graph, graphMatrix: NodeId[][]) {
   let crossings = 0;
 
   for (let i = 1; i < graphMatrix.length; i++) {
-    const layer = graphMatrix[i];
     const previousLayer = graphMatrix[i - 1];
+    const layer = graphMatrix[i];
     crossings += countCrossings(graph, previousLayer, layer);
   }
 
@@ -202,25 +242,39 @@ export function countCrossings(
   northLayer: NodeId[],
   southLayer: NodeId[]
 ) {
+  let layer0: NodeId[];
+  let layer1: NodeId[];
+
+  if (northLayer.length >= southLayer.length) {
+    layer0 = northLayer;
+    layer1 = southLayer;
+  } else {
+    layer0 = southLayer;
+    layer1 = northLayer;
+  }
+
   let firstindex = 1;
 
-  while (firstindex < southLayer.length) firstindex *= 2;
+  while (firstindex < layer1.length) firstindex *= 2;
 
   const treesize = 2 * firstindex - 1;
   firstindex -= 1;
   const tree = new Array(treesize).fill(0);
   let crosscount = 0;
-  let edges: Edge[];
 
-  if (northLayer.length >= southLayer.length) {
-    edges = northLayer.flatMap((node) => graph.outEdges(node)!);
-  } else {
-    edges = southLayer.flatMap((node) => graph.inEdges(node)!);
-  }
+  const edges = layer0.reduce<Edge[]>((accumulator, node0) => {
+    layer1.forEach((node1) => {
+      if (graph.hasEdge(node0, node1) || graph.hasEdge(node1, node0)) {
+        accumulator.push({ v: node0, w: node1 });
+      }
+    });
+
+    return accumulator;
+  }, []);
 
   edges.forEach((edge) => {
     const head = edge.w;
-    const headIndex = southLayer.indexOf(head);
+    const headIndex = layer1.indexOf(head);
     let index = headIndex + firstindex;
     tree[index]++;
 
