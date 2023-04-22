@@ -289,7 +289,7 @@ describe("Cycle Handling", () => {
 
       const edges = graph
         .edges()
-        .map((edge) => ({ ...edge, value: undefined }));
+        .map((edge) => ({ ...edge, label: undefined }));
       const returnValue = removeCycles(graph);
 
       assert.isNotEmpty(returnValue.reversedEdges);
