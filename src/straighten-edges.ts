@@ -10,6 +10,12 @@ type Ordering =
   | "left-right bottom-top"
   | "right-left bottom-top";
 
+/**
+ * @see https://link.springer.com/chapter/10.1007/3-540-45848-4_3
+ *
+ * @param graph A graphlib graph object. Must be directed.
+ * @param graphMatrix A matrix imposing a layering and ordering on the nodes.
+ */
 export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
   const leftTopBiasedGraph = buildSimpleGraph(graph);
   const leftBottomBiasedGraph = buildSimpleGraph(graph);
