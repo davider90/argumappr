@@ -155,10 +155,10 @@ describe("Minimise Crossings", () => {
       const graph = new Graph();
       const ranks = new RankTable();
 
-      graph.setNode("a");
-      graph.setNode("b");
-      graph.setNode("c");
-      graph.setNode("d");
+      graph.setNode("a", { y: 0 });
+      graph.setNode("b", { y: 0 });
+      graph.setNode("c", { y: 1 });
+      graph.setNode("d", { y: 1 });
       graph.setEdge("a", "c");
       graph.setEdge("b", "d");
 
@@ -179,10 +179,10 @@ describe("Minimise Crossings", () => {
       const graph = new Graph();
       const ranks = new RankTable();
 
-      graph.setNode("a");
-      graph.setNode("b");
-      graph.setNode("c");
-      graph.setNode("d");
+      graph.setNode("a", { y: 0 });
+      graph.setNode("b", { y: 0 });
+      graph.setNode("c", { y: 1 });
+      graph.setNode("d", { y: 1 });
       graph.setEdge("a", "d");
       graph.setEdge("b", "c");
 
