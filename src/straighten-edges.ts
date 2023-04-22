@@ -186,11 +186,14 @@ function alignVertically(
       leftBias ? j++ : j--
     ) {
       const node = layer[j];
-      const neighbors = topBias
+      let neighbors = topBias
         ? graph.predecessors(node) || []
         : graph.successors(node) || [];
 
       if (neighbors.length) {
+        neighbors = graphMatrix[i + (topBias ? -1 : 1)].filter((node) =>
+          neighbors.includes(node)
+        );
         const biggestNeighborIndex = neighbors.length - 1;
         const leftNeighborIndex = Math.floor(biggestNeighborIndex / 2);
         const rightNeighborIndex = Math.ceil(biggestNeighborIndex / 2);
@@ -223,9 +226,10 @@ function alignVertically(
               } else {
                 appendNodeValues(graph, node, { nextBlockNode: neighbor });
 
-                let blockNode = graph.node(neighbor).nextBlockNode;
+                let blockNode = neighbor;
 
                 while (graph.node(blockNode).nextBlockNode !== neighbor) {
+                  appendNodeValues(graph, blockNode, { blockNode: node });
                   blockNode = graph.node(blockNode).nextBlockNode;
                 }
 
