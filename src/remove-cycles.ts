@@ -1,10 +1,6 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
-import { buildSimpleGraph, NodeId } from "./utils";
-
-interface EdgeAndLabel extends Edge {
-  label?: any;
-}
+import { buildSimpleGraph, EdgeAndLabel, NodeId } from "./utils";
 
 /**
  * Removes cycles from the input graph and returns the modified edges. Note

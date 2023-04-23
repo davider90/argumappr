@@ -1,9 +1,15 @@
+import { Edge } from "graphlib";
 import Graph from "./graph";
 
 export const NODE_Y_SPACING = 325;
 
 export type NodeId = string;
 
+export interface EdgeAndLabel extends Edge {
+  label?: any;
+}
+
+// TODO: This class seems to leads to crashes sometimes. Look into it.
 export class RankTable {
   private nodeToRank: Map<NodeId, number>;
   private rankToNode: Map<number, Map<NodeId, true>>;

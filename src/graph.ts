@@ -1,7 +1,6 @@
 import { Edge, Graph as graphlibGraph, GraphOptions } from "graphlib";
-import { NodeId } from "./utils";
+import { appendNodeValues, NodeId } from "./utils";
 
-// TODO: Building doesn't include the type definitions for graphlib. Fix this.
 class Graph extends graphlibGraph {
   constructor(options?: GraphOptions) {
     super(options);
@@ -13,9 +12,14 @@ class Graph extends graphlibGraph {
     label?: any,
     name?: string
   ) {
+    const sourceNodeData = {
+      ...this.node(sourceNode),
+      isRelevanceSource: true,
+    };
     const dummyNodeId = `${targetEdge.v} -> ${targetEdge.w}`;
 
-    this.setNode(dummyNodeId, { isRelevanceNode: true });
+    appendNodeValues(this, sourceNode, sourceNodeData);
+    this.setNode(dummyNodeId, { isRelevanceSink: true });
     this.setEdge(sourceNode, dummyNodeId, label, name);
 
     return this;

@@ -33,7 +33,6 @@
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",
-    "@types/graphlib": "^2.1.8",
     "@types/mocha": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^5.57.1",
     "@typescript-eslint/parser": "^5.57.1",
@@ -46,6 +45,7 @@
     "typescript": "^4.9.4"
   },
   "dependencies": {
+    "@types/graphlib": "^2.1.8",
     "graphlib": "^2.1.8"
   },
   "prettier": {},
