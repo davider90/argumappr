@@ -23,6 +23,8 @@ export class RankTable {
     const oldRankNumber = this.getRankNumber(node);
     const existingRankEntries = this.getRankNodes(rank);
 
+    if (rank === oldRankNumber) return;
+
     if (oldRankNumber !== undefined) {
       const oldRank = this.getRankNodes(oldRankNumber)!;
 
