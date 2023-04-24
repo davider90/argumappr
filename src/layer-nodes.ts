@@ -1,7 +1,10 @@
 import { Edge, Graph } from "graphlib";
-import { NODE_Y_SPACING, NodeId, RankTable } from "./utils";
+import { EdgeAndLabel, NODE_Y_SPACING, NodeId, RankTable } from "./utils";
 
 const MAX_LOOPS = 100;
+
+// TODO: Instead of incrementing all successors of relevance nodes, implement
+//       minimum edge length constraints.
 
 /**
  * Assigns all nodes of the input graph to optimal ranks and returns the layers.
@@ -14,6 +17,7 @@ const MAX_LOOPS = 100;
  */
 export default function layerNodes(graph: Graph) {
   const conjunctNodes = mergeConjunctNodes(graph);
+  const metaRelevanceNodes = mergeRelevanceStructures(graph);
   const treeAndRanks = getFeasibleTree(graph);
   const { tree } = treeAndRanks;
   let { ranks } = treeAndRanks;
@@ -42,9 +46,20 @@ export default function layerNodes(graph: Graph) {
 
   normalizeRanks(graph, ranks);
   balanceLayering(graph, ranks);
-  splitConjunctNodes(graph, conjunctNodes);
+  splitConjunctNodes(graph, ranks, conjunctNodes);
+  splitRelevanceStructures(graph, ranks, metaRelevanceNodes);
+  setYCoordinates(graph, ranks);
 
   return ranks;
+}
+
+function setYCoordinates(graph: Graph, ranks: RankTable) {
+  graph.nodes().forEach((node) => {
+    const rank = ranks.getRankNumber(node)!;
+    const y = rank * NODE_Y_SPACING;
+
+    graph.node(node).y = y;
+  });
 }
 
 export function mergeConjunctNodes(graph: Graph) {
@@ -53,7 +68,7 @@ export function mergeConjunctNodes(graph: Graph) {
     .filter((node) => graph.node(node).isConjunctNode);
 
   conjunctNodes.forEach((node) => {
-    const originalEdges: Edge[] = [];
+    const originalEdges: EdgeAndLabel[] = [];
     const subnodeData: { [node: NodeId]: any } = {};
     const subnodes = graph.children(node);
 
@@ -63,14 +78,16 @@ export function mergeConjunctNodes(graph: Graph) {
 
       inEdges.forEach((inEdge) => {
         const { v } = inEdge;
+        const edgeLabel = graph.edge(inEdge);
         graph.setEdge(v, node);
-        originalEdges.push(inEdge);
+        originalEdges.push({ ...inEdge, label: edgeLabel });
       });
 
       outEdges.forEach((outEdge) => {
         const { w } = outEdge;
+        const edgeLabel = graph.edge(outEdge);
         graph.setEdge(node, w);
-        originalEdges.push(outEdge);
+        originalEdges.push({ ...outEdge, label: edgeLabel });
       });
 
       subnodeData[subnode] = graph.node(subnode);
@@ -84,18 +101,23 @@ export function mergeConjunctNodes(graph: Graph) {
   return conjunctNodes;
 }
 
-export function splitConjunctNodes(graph: Graph, conjunctNodes: NodeId[]) {
+export function splitConjunctNodes(
+  graph: Graph,
+  ranks: RankTable,
+  conjunctNodes: NodeId[]
+) {
   conjunctNodes.forEach((node) => {
-    const subnodeData = graph.node(node).subnodeData;
-    const originalEdges = graph.node(node).originalEdges;
+    const { subnodeData, originalEdges } = graph.node(node);
 
     Object.keys(subnodeData).forEach((subnode) => {
       graph.setNode(subnode, subnodeData[subnode]);
       graph.setParent(subnode, node);
+      ranks.set(subnode, ranks.getRankNumber(node)!);
     });
 
-    originalEdges.forEach((edge: Edge) => {
-      graph.setEdge(edge);
+    originalEdges.forEach((edge: EdgeAndLabel) => {
+      const { v, w, label, name } = edge;
+      graph.setEdge(v, w, label, name);
     });
 
     graph.nodeEdges(node)!.forEach((edge) => {
@@ -148,8 +170,7 @@ export function normalizeRanks(graph: Graph, ranks: RankTable) {
 
   graph.nodes().forEach((node) => {
     const rank = ranks.getRankNumber(node)!;
-    if (smallestRank !== 0) ranks.set(node, rank - smallestRank);
-    graph.node(node).y = (rank - smallestRank) * NODE_Y_SPACING;
+    ranks.set(node, rank - smallestRank);
   });
 }
 
@@ -270,6 +291,111 @@ export function getFeasibleTree(graph: Graph) {
   setCutValues(graph, tree);
 
   return { tree, ranks };
+}
+
+function mergeRelevanceStructures(graph: Graph) {
+  const relevanceSinks = graph
+    .nodes()
+    .filter((node) => graph.node(node).isRelevanceSink);
+  const metaRelevanceNodes: NodeId[] = [];
+
+  relevanceSinks.forEach((relevanceSink) => {
+    const originalEdges: EdgeAndLabel[] = [];
+    const subnodeData: { [node: NodeId]: any } = {};
+    const incidentNodes = relevanceSink.split(" -> ");
+    const relevanceSource = graph.predecessors(relevanceSink)![0];
+    const nodes = [...incidentNodes, relevanceSource];
+    const metaRelevanceNode = `meta ${relevanceSink}`;
+
+    graph.setNode(metaRelevanceNode, {});
+
+    nodes.forEach((node) => {
+      const inEdges = graph.inEdges(node) || [];
+      const outEdges = graph.outEdges(node) || [];
+
+      for (const inEdge of inEdges) {
+        const { v } = inEdge;
+        const edgeLabel = graph.edge(inEdge);
+        originalEdges.push({ ...inEdge, label: edgeLabel });
+        if (nodes.includes(v)) continue;
+        graph.setEdge(v, metaRelevanceNode, edgeLabel);
+      }
+
+      for (const outEdge of outEdges) {
+        const { w } = outEdge;
+        const edgeLabel = graph.edge(outEdge);
+        originalEdges.push({ ...outEdge, label: edgeLabel });
+        if (nodes.includes(w)) continue;
+        graph.setEdge(metaRelevanceNode, w, edgeLabel);
+      }
+
+      subnodeData[node] = graph.node(node);
+      graph.removeNode(node);
+    });
+
+    graph.node(metaRelevanceNode).subnodeData = subnodeData;
+    graph.node(metaRelevanceNode).originalEdges = originalEdges;
+    metaRelevanceNodes.push(metaRelevanceNode);
+  });
+
+  return metaRelevanceNodes;
+}
+
+function splitRelevanceStructures(
+  graph: Graph,
+  ranks: RankTable,
+  metaRelevanceNodes: NodeId[]
+) {
+  if (!metaRelevanceNodes.length) return;
+
+  const relevanceStructureNodes: NodeId[] = [];
+  let sink = "";
+  let relevanceSource = "";
+  let relevanceSink = "";
+
+  metaRelevanceNodes.forEach((metaRelevanceNode) => {
+    const { subnodeData, originalEdges } = graph.node(metaRelevanceNode);
+
+    Object.keys(subnodeData).forEach((subnode) => {
+      graph.setNode(subnode, subnodeData[subnode]);
+      ranks.set(subnode, ranks.getRankNumber(metaRelevanceNode)!);
+      relevanceStructureNodes.push(subnode);
+
+      if (subnodeData[subnode].isRelevanceSource) {
+        relevanceSource = subnode;
+      } else if (subnodeData[subnode].isRelevanceSink) {
+        const incidentNodes = subnode.split(" -> ");
+        sink = incidentNodes[1];
+        relevanceSink = subnode;
+      }
+    });
+
+    originalEdges.forEach((edge: EdgeAndLabel) => {
+      const { v, w, label, name } = edge;
+      graph.setEdge(v, w, label, name);
+    });
+
+    graph.removeNode(metaRelevanceNode);
+  });
+
+  propegateRankIncrement(graph, ranks, sink, 1);
+  ranks.set(relevanceSource, ranks.getRankNumber(relevanceSource)! - 0.5);
+  propegateRankIncrement(graph, ranks, relevanceSink, 1);
+  ranks.set(relevanceSink, ranks.getRankNumber(relevanceSink)! + 0.5);
+}
+
+function propegateRankIncrement(
+  graph: Graph,
+  ranks: RankTable,
+  node: NodeId,
+  delta: number
+) {
+  ranks.set(node, ranks.getRankNumber(node)! + delta);
+  const successors = graph.successors(node) || [];
+
+  successors.forEach((successor) => {
+    propegateRankIncrement(graph, ranks, successor, delta);
+  });
 }
 
 export function setRanks(graph: Graph, nodeList?: NodeId[]) {
