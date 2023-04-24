@@ -124,8 +124,8 @@ export function deleteLoop(graph: Graph, edge: Edge) {
   const { v, w } = edge;
 
   if (v === w) {
-    const edgeValue = graph.edge(edge);
-    const originalEdge = { ...edge, value: edgeValue };
+    const edgeLabel = graph.edge(edge);
+    const originalEdge = { ...edge, label: edgeLabel };
 
     graph.removeEdge(edge);
     return originalEdge;
@@ -150,12 +150,12 @@ export function reverseEdge(
   const { v, w } = edge;
 
   if (nodes1.includes(v) && nodes0.includes(w)) {
-    const edgeValue = graph.edge(edge);
-    const originalEdge = { ...edge, value: edgeValue };
+    const edgeLabel = graph.edge(edge);
+    const originalEdge = { ...edge, label: edgeLabel };
     const reversedEdge = { ...edge, v: w, w: v };
 
     graph.removeEdge(edge);
-    graph.setEdge(reversedEdge, edgeValue);
+    graph.setEdge(reversedEdge, edgeLabel);
     return originalEdge;
   }
 }

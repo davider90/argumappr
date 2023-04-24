@@ -31,7 +31,7 @@ describe("Cycle Handling", () => {
       assert.isUndefined(returnValue);
 
       returnValue = reverseEdge(graph, ["b"], ["a"], edge);
-      const expectedValue = { ...edge, value: undefined };
+      const expectedValue = { ...edge, label: undefined };
 
       assert.deepEqual(returnValue, expectedValue);
     });
@@ -47,8 +47,8 @@ describe("Cycle Handling", () => {
 
       reverseEdge(graph, ["b"], ["a"], edge);
 
-      const expectedEdge = { v: "b", w: "a", value: undefined };
-      const actualEdge = { ...graph.edges()[0], value: undefined };
+      const expectedEdge = { v: "b", w: "a", label: undefined };
+      const actualEdge = { ...graph.edges()[0], label: undefined };
 
       assert.deepEqual(actualEdge, expectedEdge);
     });
@@ -75,7 +75,7 @@ describe("Cycle Handling", () => {
 
       edge = graph.inEdges("a")![0];
       returnValue = deleteLoop(graph, edge);
-      const expectedValue = { ...edge, value: undefined };
+      const expectedValue = { ...edge, label: undefined };
 
       assert.deepEqual(returnValue, expectedValue);
     });
@@ -132,8 +132,8 @@ describe("Cycle Handling", () => {
       graph.setEdge("a", "a");
 
       returnValue = handleEdges(graph, ["b", "c"], ["a"]);
-      const expectedEdge = { v: "a", w: "b", value: undefined };
-      const expectedLoop = { v: "a", w: "a", value: undefined };
+      const expectedEdge = { v: "a", w: "b", label: undefined };
+      const expectedLoop = { v: "a", w: "a", label: undefined };
 
       assert.lengthOf(returnValue.reversedEdges, 1);
       assert.sameDeepMembers(returnValue.reversedEdges, [expectedEdge]);
