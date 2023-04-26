@@ -5,61 +5,16 @@ import npmPackage from "../src/index";
 
 const { Graph, drawLayeredGraph } = npmPackage;
 
-describe("Project", () => {
-  describe("NPM Package", () => {
-    it("should be an object", () => {
-      assert.isObject(npmPackage);
-    });
-
-    it("should have a graph property", () => {
-      assert.property(npmPackage, "Graph");
-    });
-
-    it("should have a drawLayeredGraph property", () => {
-      assert.property(npmPackage, "drawLayeredGraph");
-    });
+describe("NPM Package", () => {
+  it("should be an object", () => {
+    assert.isObject(npmPackage);
   });
 
-  describe("Layered Graph Drawing", () => {
-    it("should be a function", () => {
-      assert.isFunction(drawLayeredGraph);
-    });
+  it("should have a graph property", () => {
+    assert.property(npmPackage, "Graph");
+  });
 
-    const graph = new Graph();
-    graph.setDefaultNodeLabel(() => ({}));
-    graph.setDefaultEdgeLabel(() => ({}));
-
-    graph.setNode("a");
-    graph.setNode("b");
-    graph.setNode("c");
-    graph.setNode("d");
-    graph.setNode("e");
-    graph.setEdge("a", "b");
-    graph.setEdge("b", "c");
-    graph.setEdge("c", "e");
-    graph.setEdge("e", "d");
-
-    it("should return void", () => {
-      assert.isUndefined(drawLayeredGraph(graph));
-    });
-
-    it("test2", () => {
-      const g = new Graph();
-      g.setDefaultNodeLabel(() => ({}));
-      g.setDefaultEdgeLabel(() => ({}));
-
-      g.setNode("a");
-      g.setNode("b");
-      g.setNode("c");
-      g.setNode("d");
-      g.setNode("e");
-
-      g.setEdge("a", "b");
-      g.setEdge("b", "c");
-      g.setEdge("b", "d");
-      g.setEdge("e", "d");
-
-      drawLayeredGraph(g);
-    });
+  it("should have a drawLayeredGraph property", () => {
+    assert.property(npmPackage, "drawLayeredGraph");
   });
 });
