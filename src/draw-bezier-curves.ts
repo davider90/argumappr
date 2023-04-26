@@ -8,14 +8,15 @@ import Graph from "./graph";
 function drawBezierCurves(graph: Graph) {
   graph.edges().forEach((edge) => {
     const { v, w } = edge;
+    const numberOfVEdges = graph.nodeEdges(v)!.length;
 
     const controlPoint0 = {
       x: graph.node(v).x,
       y: graph.node(v).y,
     };
     const controlPoint1 = {
-      x: graph.node(w).x,
-      y: graph.node(v).y,
+      x: numberOfVEdges > 1 ? graph.node(w).x : graph.node(v).x,
+      y: numberOfVEdges > 1 ? graph.node(v).y : graph.node(w).y,
     };
     const controlPoint2 = {
       x: graph.node(w).x,
