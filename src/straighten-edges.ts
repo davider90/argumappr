@@ -1,7 +1,11 @@
 import Graph from "./graph";
-import { NodeId, appendNodeValues, buildSimpleGraph } from "./utils";
+import {
+  NODE_WIDTH,
+  NodeId,
+  appendNodeValues,
+  buildSimpleGraph,
+} from "./utils";
 
-const NODE_WIDTH = 300;
 const NODE_X_SPACING = 100;
 
 type Ordering =
@@ -109,6 +113,9 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
     }
   );
 
+  let smallestX = Infinity;
+  let largestX = -Infinity;
+
   graph.nodes().forEach((node) => {
     const biasedNodes: number[] = [
       leftTopBiasedGraph.node(node).x,
@@ -118,7 +125,11 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
     ].sort((a, b) => a - b);
     const newNodeX = (biasedNodes[1] + biasedNodes[2]) / 2;
     graph.node(node).x = newNodeX;
+    if (newNodeX < smallestX) smallestX = newNodeX;
+    if (newNodeX > largestX) largestX = newNodeX;
   });
+
+  graph.graph().width = largestX - smallestX;
 }
 
 function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {

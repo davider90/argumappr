@@ -2,6 +2,7 @@ import { Edge } from "graphlib";
 import Graph from "./graph";
 
 export const NODE_Y_SPACING = 325;
+export const NODE_WIDTH = 300;
 
 export type NodeId = string;
 
@@ -166,10 +167,10 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
     }
   });
 
-  const inputGraphLabel = inputGraph.graph() as any;
-  const layoutGraphLabel = layoutGraph.graph() as any;
+  const inputGraphLabel = inputGraph.graph();
+  const layoutGraphLabel = layoutGraph.graph();
 
-  // inputGraphLabel.width = layoutGraphLabel.width;
+  inputGraphLabel.width = layoutGraphLabel.width + NODE_WIDTH;
   // inputGraphLabel.height = layoutGraphLabel.height;
 }
 
