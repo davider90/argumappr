@@ -6,6 +6,10 @@ class Graph extends graphlibGraph {
     super(options);
   }
 
+  override graph(): any {
+    return super.graph();
+  }
+
   setRelevanceEdge(
     sourceNode: string,
     targetEdge: Edge,
@@ -56,6 +60,7 @@ class Graph extends graphlibGraph {
     }
 
     this.setParent(node, vParentNode);
+    this.setEdge(node, edge.w);
 
     return this;
   }
