@@ -1,13 +1,39 @@
 import "mocha";
 import { assert } from "chai";
 
-import { Edge } from "graphlib";
-
 import Graph from "../src/graph";
-import layerNodes, { setRanks, getTightTree } from "../src/layer-nodes";
+import layerNodes from "../src/layer-nodes";
 import { RankTable } from "../src/utils";
 
 describe("Node Layer Assignment", () => {
+  it("should be a function", () => {
+    assert.isFunction(layerNodes);
+  });
+
+  it("should return a node layering", () => {
+    const graph = new Graph();
+    const ranks = layerNodes(graph);
+    const emptyRankTable = new RankTable();
+
+    assert.hasAllKeys(ranks, Object.keys(emptyRankTable));
+  });
+
+  it("should assign nodes to layers", () => {
+    const graph = new Graph();
+
+    graph.setNode("a");
+    graph.setNode("b");
+    graph.setNode("c");
+    graph.setEdge("a", "b");
+    graph.setEdge("b", "c");
+
+    const ranks = layerNodes(graph);
+
+    assert.strictEqual(ranks.getRankNumber("a"), 0);
+    assert.strictEqual(ranks.getRankNumber("b"), 1);
+    assert.strictEqual(ranks.getRankNumber("c"), 2);
+  });
+
   it("test", () => {
     const g = new Graph();
     g.setDefaultNodeLabel(() => ({}));
@@ -62,107 +88,18 @@ describe("Node Layer Assignment", () => {
 
     g.setNode("a");
     g.setNode("b");
-    g.setNode("c");
-    g.setNode("d");
-    g.setNode("e");
-
     g.setEdge("a", "b");
-    g.setEdge("a", "c");
+
+    g.setNode("c");
+    g.setEdge("c", "a");
+
+    g.setNode("d");
     g.setEdge("a", "d");
-    g.setEdge("e", "c");
 
-    layerNodes(g);
+    g.setNode("e");
+    g.setEdge("e", "d");
+
+    const ranking = layerNodes(g);
+    console.log(ranking);
   });
-  // describe("Initial Ranking", () => {
-  //   it("should be a function", () => {
-  //     assert.isFunction(setRanks);
-  //   });
-
-  //   it("should return a mapping of nodes to ranks", () => {
-  //     const graph = new Graph();
-  //     let returnValue = setRanks(graph);
-
-  //     assert.instanceOf(returnValue, Map);
-  //     assert.isEmpty(returnValue);
-
-  //     graph.setNode("a");
-  //     graph.setNode("b");
-  //     graph.setNode("c");
-  //     graph.setNode("d");
-  //     graph.setEdge("a", "b");
-  //     graph.setEdge("b", "c");
-  //     graph.setEdge("b", "d");
-
-  //     returnValue = setRanks(graph);
-  //     const returnedNodes = [...returnValue.keys()];
-  //     const expectedNodes = ["a", "b", "c", "d"];
-  //     const returnedRanks = [...returnValue.values()];
-  //     const expectedRanks = [0, 1, 2, 2];
-
-  //     assert.lengthOf(returnedNodes, 4);
-  //     assert.sameMembers(returnedNodes, expectedNodes);
-  //     assert.lengthOf(returnedRanks, 4);
-  //     assert.sameMembers(returnedRanks, expectedRanks);
-  //   });
-  // });
-
-  // describe("Tight Tree Generation", () => {
-  //   it("should be a function", () => {
-  //     assert.isFunction(getTightTree);
-  //   });
-
-  //   it("should return a tight tree", () => {
-  //     const graph = new Graph();
-  //     let ranks = new Map();
-  //     let returnValue = getTightTree(graph, ranks);
-
-  //     assert.isObject(returnValue);
-  //     assert.strictEqual(returnValue.nodeCount(), 0);
-
-  //     graph.setNode("a");
-  //     graph.setNode("b");
-  //     graph.setNode("c");
-  //     graph.setNode("d");
-  //     graph.setEdge("a", "b");
-  //     graph.setEdge("b", "c");
-  //     graph.setEdge("c", "d");
-
-  //     ranks = setRanks(graph);
-  //     returnValue = getTightTree(graph, ranks);
-
-  //     assert.strictEqual(returnValue.nodeCount(), 4);
-  //   });
-  // });
-
-  // describe("Node Layering", () => {
-  //   it("should be a function", () => {
-  //     assert.isFunction(layerNodes);
-  //   });
-
-  //   it("should return an array of layers", () => {
-  //     const graph = new Graph();
-  //     let returnValue = layerNodes(graph);
-
-  //     assert.isArray(returnValue);
-  //     assert.lengthOf(returnValue, 1);
-  //     assert.isArray(returnValue[0]);
-  //     assert.isEmpty(returnValue[0]);
-
-  //     graph.setNode("a");
-  //     graph.setNode("b");
-  //     graph.setNode("c");
-  //     graph.setEdge("a", "b");
-  //     graph.setEdge("b", "c");
-  //     graph.setEdge("c", "a");
-
-  //     returnValue = layerNodes(graph);
-  //     const returnedNodes = returnValue.flat();
-  //     const expectedNodes = ["a", "b", "c"];
-
-  //     assert.lengthOf(returnValue, 2);
-  //     assert.isNotEmpty(returnValue[0]);
-  //     assert.isNotEmpty(returnValue[1]);
-  //     assert.sameMembers(returnedNodes, expectedNodes);
-  //   });
-  // });
 });
