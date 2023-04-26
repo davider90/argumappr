@@ -1,5 +1,12 @@
-import { Edge, Graph } from "graphlib";
-import { EdgeAndLabel, NODE_Y_SPACING, NodeId, RankTable } from "./utils";
+import { Edge } from "graphlib";
+import Graph from "./graph";
+import {
+  EdgeAndLabel,
+  NODE_Y_SPACING,
+  NodeId,
+  RankTable,
+  appendNodeValues,
+} from "./utils";
 
 const MAX_LOOPS = 100;
 
@@ -58,14 +65,14 @@ function setYCoordinates(graph: Graph, ranks: RankTable) {
     const rank = ranks.getRankNumber(node)!;
     const y = rank * NODE_Y_SPACING;
 
-    graph.node(node).y = y;
+    appendNodeValues(graph, node, { y });
   });
 }
 
 export function mergeConjunctNodes(graph: Graph) {
   const conjunctNodes = graph
     .nodes()
-    .filter((node) => graph.node(node).isConjunctNode);
+    .filter((node) => graph.node(node)?.isConjunctNode);
 
   conjunctNodes.forEach((node) => {
     const originalEdges: EdgeAndLabel[] = [];
@@ -296,7 +303,7 @@ export function getFeasibleTree(graph: Graph) {
 function mergeRelevanceStructures(graph: Graph) {
   const relevanceSinks = graph
     .nodes()
-    .filter((node) => graph.node(node).isRelevanceSink);
+    .filter((node) => graph.node(node)?.isRelevanceSink);
   const metaRelevanceNodes: NodeId[] = [];
 
   relevanceSinks.forEach((relevanceSink) => {
