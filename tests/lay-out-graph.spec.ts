@@ -1,18 +1,18 @@
 import "mocha";
 import { assert } from "chai";
 
-import drawLayeredGraph from "../src/draw-layered-graph";
+import layOutGraph from "../src/lay-out-graph";
 import Graph from "../src/graph";
 
 describe("Layered Graph Drawing", () => {
   it("should be a function", () => {
-    assert.isFunction(drawLayeredGraph);
+    assert.isFunction(layOutGraph);
   });
 
   it("test", () => {
     const g = new Graph();
     g.setNodes(["a", "b"]);
-    drawLayeredGraph(g);
+    layOutGraph(g);
   });
 
   const graph = new Graph();
@@ -30,7 +30,7 @@ describe("Layered Graph Drawing", () => {
   graph.setEdge("e", "d");
 
   it("should return void", () => {
-    assert.isUndefined(drawLayeredGraph(graph));
+    assert.isUndefined(layOutGraph(graph));
   });
 
   it("test2", () => {
@@ -49,6 +49,6 @@ describe("Layered Graph Drawing", () => {
     g.setEdge("b", "d");
     g.setEdge("e", "d");
 
-    drawLayeredGraph(g);
+    layOutGraph(g);
   });
 });

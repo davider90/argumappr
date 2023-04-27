@@ -1,20 +1,11 @@
 import "mocha";
 import { assert } from "chai";
 
-import npmPackage from "../src/index";
-
-const { Graph, drawLayeredGraph } = npmPackage;
+import { Graph, layOutGraph } from "../src/index";
 
 describe("NPM Package", () => {
-  it("should be an object", () => {
-    assert.isObject(npmPackage);
-  });
-
-  it("should have a graph property", () => {
-    assert.property(npmPackage, "Graph");
-  });
-
-  it("should have a drawLayeredGraph property", () => {
-    assert.property(npmPackage, "drawLayeredGraph");
+  it("should export a class and a function", () => {
+    assert.isFunction(Graph);
+    assert.isFunction(layOutGraph);
   });
 });

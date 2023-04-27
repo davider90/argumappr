@@ -7,13 +7,26 @@ import { buildLayoutGraph, updateInputGraph } from "./utils";
 import drawBezierCurves from "./draw-bezier-curves";
 
 /**
- * Produces a hierarchical layout of a directed graph. The algorithm is based on
- * the Sugiyama method, producing a layered graph through four steps: removing
- * cycles, layering nodes, minimising edge crossings and straightening edges.
+ * Produces a hierarchical layout for the input graph, which must be directed.
+ * Assigns layout information to the input graph and returns nothing.
  *
- * @param graph A graphlib graph object. Must be directed.
+ * @remarks
+ *
+ * This algorithm is based on the Sugiyama method. It generates a layered graph
+ * layout through four steps:
+ *   1. Remove cycles
+ *   2. Layer nodes
+ *   3. Minimise crossings
+ *   4. Straighten edges
+ *
+ * Each step uses specific sub-algorithms. Various changes have been made to the
+ * original algorithms to support argument maps.
+ *
+ * @see {@link https://ieeexplore.ieee.org/document/4308636}
+ *
+ * @param graph A graph object. Must be directed.
  */
-function drawLayeredGraph(graph: Graph) {
+function layOutGraph(graph: Graph) {
   if (!graph.isDirected()) {
     throw new Error("Graph must be directed for layered drawing");
   }
@@ -59,4 +72,4 @@ function drawLayeredGraph(graph: Graph) {
   updateInputGraph(graph, layoutGraph);
 }
 
-export default drawLayeredGraph;
+export default layOutGraph;
