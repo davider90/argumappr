@@ -3,17 +3,23 @@ import Graph from "./graph";
 import { buildSimpleGraph, EdgeAndLabel, NodeId } from "./utils";
 
 /**
- * Removes cycles from the input graph and returns the modified edges. Note
- * that: the input graph is modified in place, cycles are broken by inverting an
- * edge in the cycle, and loops (edges with the same source and target) are
- * simply removed. The algorithm is heavily based on Eades et al.'s greedy cycle
- * removal.
+ * Removes cycles from the input graph by reversing edges and, in case of loops,
+ * deleting edges. Returns the original version of all modified edges. Mutates
+ * the input graph in place.
  *
- * @see https://www.sciencedirect.com/science/article/abs/pii/002001909390079O
- * @remarks Run time at least as good as O(|V| + |E|).
+ * @remarks
  *
- * @param graph A graphlib graph object. Must be directed.
- * @returns The modified edges.
+ * This algorithm is heavily based on Eades et al.'s greedy cycle removal. It
+ * uses a greedy heuristic to identify a *small enough* set of edges whose
+ * reversal leaves the graph acyclic. The edges of said set are inverted, and
+ * loops are deleted. The original versions of modified edges are stored away
+ * and returned so that they may be recovered at a later stage. The run time is
+ * at least as good as O(|V| + |E|).
+ *
+ * @see {@link https://www.sciencedirect.com/science/article/abs/pii/002001909390079O}
+ *
+ * @param graph A graph object. Must be directed.
+ * @returns The original version of all modified edges.
  */
 export default function removeCycles(graph: Graph) {
   const graphCopy = buildSimpleGraph(graph);
@@ -24,14 +30,18 @@ export default function removeCycles(graph: Graph) {
 }
 
 /**
+ * Greedily generates an implicit set of edges whose reversal leaves the graph
+ * acyclic (all edges going from a node in `nodes1` to a node in `nodes0`)
+ *
+ * @remarks
+ *
  * This is basically the main algorithm of Eades et al. It sorts nodes into two
  * sets in such a way that it imposes a partial linear ordering. As it is
  * greedy, it may not find the optimal solution, but it always implicitly
- * produces a feedback set (FS): the set of edges going "against the flow",
+ * produces a feedback set (FS): the set of edges going *against the flow*,
  * i.e., from `nodes1` to `nodes0`.
- * @private
  *
- * @param graph A graphlib graph object. Must be directed.
+ * @param graph A graph object. Must be directed.
  * @returns Two node sets imposing a partial linear ordering.
  */
 export function greedilyGetFS(graph: Graph) {
@@ -66,10 +76,11 @@ export function greedilyGetFS(graph: Graph) {
 }
 
 /**
- * @private
+ * Returns the node of maximum degree. In this context, *degree* is defined as
+ * the difference between the outdegree and the indegree of a node.
  *
- * @param graph A graphlib graph object. Must be directed.
- * @returns The node with the highest indegree - outdegree.
+ * @param graph A graph object. Must be directed.
+ * @returns The node with the highest degree.
  */
 export function getMaxNode(graph: Graph) {
   let maxNode = { nodeId: "", degree: -Infinity };
@@ -88,12 +99,13 @@ export function getMaxNode(graph: Graph) {
 }
 
 /**
- * @private
+ * Reverses edges whose tail is in `nodes0` and head is in `nodes1`, deletes
+ * loops and returns the original version of all modified edges.
  *
- * @param graph A graphlib graph object. Must be directed.
+ * @param graph A graph object. Must be directed.
  * @param nodes0 The first set of nodes.
  * @param nodes1 The second set of nodes.
- * @returns The modified edges.
+ * @returns The original version of all modified edges.
  */
 export function handleEdges(graph: Graph, nodes0: NodeId[], nodes1: NodeId[]) {
   const deletedLoops: EdgeAndLabel[] = [];
@@ -114,11 +126,12 @@ export function handleEdges(graph: Graph, nodes0: NodeId[], nodes1: NodeId[]) {
 }
 
 /**
- * @private
+ * If the edge is a loop, deletes it from the graph and returns it. Returns
+ * `undefined` otherwise.
  *
- * @param graph A graphlib graph object.
+ * @param graph A graph object.
  * @param edge An edge.
- * @returns The original edge if it was a loop, `undefined` otherwise.
+ * @returns The original edge if it was a loop.
  */
 export function deleteLoop(graph: Graph, edge: Edge) {
   const { v, w } = edge;
@@ -133,13 +146,14 @@ export function deleteLoop(graph: Graph, edge: Edge) {
 }
 
 /**
- * @private
+ * If the edge goes from `nodes1` to `nodes0`, reverses it in the graph and
+ * returns the original edge. Returns `undefined` otherwise.
  *
- * @param graph A graphlib graph object.
+ * @param graph A graph object. Must be directed.
  * @param nodes0 The first set of nodes.
  * @param nodes1 The second set of nodes.
  * @param edge An edge.
- * @returns The original edge if it was reversed, `undefined` otherwise.
+ * @returns The original edge if it was reversed.
  */
 export function reverseEdge(
   graph: Graph,
