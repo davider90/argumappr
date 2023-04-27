@@ -1,9 +1,15 @@
 {
-  "name": "master-project",
+  "name": "argumappr",
   "version": "0.1.0",
-  "description": "This is the master project repository",
-  "keywords": [],
-  "author": "David Ferenc Bendiksen <davidbendiksen@hotmail.com>",
+  "description": "Automatic graph layout generation for argument maps",
+  "keywords": [
+    "graph",
+    "layout",
+    "graph drawing",
+    "argument map",
+    "Sugiyama method"
+  ],
+  "author": "David Ferenc Bendiksen",
   "license": "MIT",
   "types": "./lib/cjs/types/index.d.ts",
   "main": "./lib/cjs/index.js",
