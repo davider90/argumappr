@@ -1,13 +1,13 @@
 {
   "name": "argumappr",
   "version": "0.1.0",
-  "description": "Automatic graph layout generation for argument maps",
+  "description": "Automatic graph layout generation for argument maps.",
   "keywords": [
-    "graph",
-    "layout",
-    "graph drawing",
-    "argument map",
-    "Sugiyama method"
+    "graphs",
+    "layouts",
+    "graph-drawing",
+    "argument-maps",
+    "sugiyama"
   ],
   "author": "David Ferenc Bendiksen",
   "license": "MIT",
