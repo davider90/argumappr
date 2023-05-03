@@ -11,7 +11,6 @@ import drawBezierCurves from "./draw-bezier-curves";
  * Assigns layout information to the input graph and returns nothing.
  *
  * @remarks
- *
  * This algorithm is based on the Sugiyama method. It generates a layered graph
  * layout through four steps:
  *   1. Remove cycles
@@ -22,11 +21,12 @@ import drawBezierCurves from "./draw-bezier-curves";
  * Each step uses specific sub-algorithms. Various changes have been made to the
  * original algorithms to support argument maps.
  *
- * @see {@link https://ieeexplore.ieee.org/document/4308636}
+ * @see
+ * [Methods for VisualUnderstanding of Hierarchical System Structures](https://ieeexplore.ieee.org/document/4308636)
  *
  * @param graph A graph object. Must be directed.
  */
-function layOutGraph(graph: Graph) {
+export default function layOutGraph(graph: Graph) {
   if (!graph.isDirected()) {
     throw new Error("Graph must be directed for layered drawing");
   }
@@ -71,5 +71,3 @@ function layOutGraph(graph: Graph) {
 
   updateInputGraph(graph, layoutGraph);
 }
-
-export default layOutGraph;

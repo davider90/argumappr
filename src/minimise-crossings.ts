@@ -9,18 +9,33 @@ import {
 } from "./utils";
 
 /**
- * Minimises the number of crossings between the ranks of a graph by iteratively
- * sweeping the ranks from top to bottom and bottom to top until an optimum is
- * reached. This is based on the down-up barycenter heuristic described by
- * Sugiyama et al. The algorithm might not produce the global optimum, but it
- * will always find a positioning with 0 crossings if one exists. Also, it has
- * been reported to consistently be within 3 percent of optimal.
+ * Tries to minimise the number of edge crossings by reordering nodes within
+ * layers according to a heuristic. Returns a node position matrix.
  *
- * @see https://ieeexplore.ieee.org/document/4308636
- * @remarks Reportedly, among the best run times of algorithms for this problem.
+ * @remarks
+ * The barycenter heuristic was originally described by Sugiyama et al, but this
+ * implementation is based on Forster's constrained version. It reduces the
+ * number of crossings by considering layers pairwise, viewing one as fixed and
+ * the other as mutable. The mutable layer is sorted based the average position
+ * of nodes' neighbors. Ranks are iteratively swept from top to bottom and
+ * bottom to top until an optimum is reached. A constraint graph is used to
+ * represent ordering constraints. During sweeps, nodes are only reordered such
+ * that no constraints are violated. The algorithm might not produce the global
+ * optimum, but it will always find a state with nil crossings if one exists.
+ * The original barycenter algorithm has been reported to consistently be within
+ * three percent of optimal and have among the best run times of algorithms for
+ * this problem. This constrained version is expected to produce *good enough*
+ * results and has a run time of
+ * *O(|V_2| log|V_2| + |E| log|V_s| + |E| + |C|^2)*, where *V_2* is the
+ * nodes of the mutable layer and *V_s* is the nodes of the smaller layer of the
+ * two.
  *
- * @param graph A graphlib graph object.
+ * @see
+ * [A Fast and Simple Heuristic for Constrained Two-Level Crossing Reduction](https://link.springer.com/chapter/10.1007/978-3-540-31843-9_22)
+ *
+ * @param graph A graph object. Must be directed and acyclic.
  * @param ranks A ranking of the nodes in the graph.
+ * @returns A node matrix.
  */
 export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
   const constraintGraph = preprocessDataStructures(graph, ranks);
@@ -39,42 +54,264 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
   return graphMatrix;
 }
 
-function reverseWithinLayers(
-  graph: Graph,
-  constraintGraph: Graph,
-  graphMatrix: NodeId[][]
-) {
-  for (let i = 1; i < graphMatrix.length; i++) {
-    const previousLayer = graphMatrix[i - 1];
-    const layer = graphMatrix[i];
+/**
+ * Splits non-tight edges, and creates and returns a constraint graph based on
+ * conjunct nodes and relevance structures.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @returns A constraint graph.
+ */
+function preprocessDataStructures(graph: Graph, ranks: RankTable) {
+  const constraintGraph = new Graph();
 
-    graphMatrix[i] = sweepLayer(
-      graph,
-      constraintGraph,
-      previousLayer,
-      layer,
-      "down"
-    );
-  }
+  splitNontightEdges(graph, ranks);
+  handleConjunctNodes(graph, ranks, constraintGraph);
+  handleRelevanceStructures(graph, ranks, constraintGraph);
 
-  for (let i = graphMatrix.length - 2; i >= 0; i--) {
-    const layer = graphMatrix[i];
-    const nextLayer = graphMatrix[i + 1];
-
-    graphMatrix[i] = sweepLayer(graph, constraintGraph, layer, nextLayer, "up");
-  }
+  return constraintGraph;
 }
 
+/**
+ * Splits non-tight edges into a series of tight edges by inserting dummy nodes
+ * at each rank between the source and target of the edge.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ */
+function splitNontightEdges(graph: Graph, ranks: RankTable) {
+  graph.edges().forEach((edge) => {
+    const { v, w } = edge;
+    const vRank = ranks.getRank(v)!;
+    const wRank = ranks.getRank(w)!;
+    const vY = graph.node(v)!.y;
+    const edgeData = graph.edge(edge)!;
+    let dummyNodeIndex = 0;
+    let previousNodeId = v;
+
+    for (let rankIndex = vRank + 1; rankIndex < wRank; rankIndex++) {
+      const dummyNodeId = `${v}-${w}-${dummyNodeIndex}`;
+      const dummyNodeY = vY + (dummyNodeIndex + 1) * NODE_Y_SPACING;
+
+      graph.setNode(dummyNodeId, {
+        isDummyNode: true,
+        y: dummyNodeY,
+        edgeData,
+      });
+      graph.setEdge(previousNodeId, dummyNodeId);
+      ranks.set(dummyNodeId, rankIndex);
+
+      dummyNodeIndex++;
+      previousNodeId = dummyNodeId;
+    }
+
+    if (dummyNodeIndex > 0) {
+      graph.setEdge(previousNodeId, w);
+      graph.removeEdge(edge);
+    }
+  });
+}
+
+/**
+ * Creates two dummy nodes for each conjunct node to act as delimiters within
+ * their layer, and constrains all subnodes to be between them.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @param constraintGraph A constraint graph.
+ */
+function handleConjunctNodes(
+  graph: Graph,
+  ranks: RankTable,
+  constraintGraph: Graph
+) {
+  const conjunctNodes = graph
+    .nodes()
+    .filter((node) => graph.node(node)?.isConjunctNode);
+
+  conjunctNodes.forEach((node) => {
+    const startDummyNodeId = `start-${node}`;
+    const endDummyNodeId = `end-${node}`;
+    const children = graph.children(node);
+    const rankNumber = ranks.getRank(children[0])!;
+
+    graph.setNode(startDummyNodeId, { isConjunctDummyNode: true });
+    graph.setNode(endDummyNodeId, { isConjunctDummyNode: true });
+    ranks.set(startDummyNodeId, rankNumber);
+    ranks.set(endDummyNodeId, rankNumber);
+
+    children.forEach((child) => {
+      constraintGraph.setEdge(startDummyNodeId, child);
+      constraintGraph.setEdge(child, endDummyNodeId);
+    });
+  });
+}
+
+/**
+ * Creates dummy nodes for relevance structures, spreads them out on the
+ * appropriate layers and constrains them to stay clustered.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @param constraintGraph A constraint graph.
+ */
+function handleRelevanceStructures(
+  graph: Graph,
+  ranks: RankTable,
+  constraintGraph: Graph
+) {
+  const relevanceSinks = graph
+    .nodes()
+    .filter((node) => graph.node(node)?.isRelevanceSink);
+
+  relevanceSinks.forEach((sink) => {
+    const [simpleSource, simpleSink] = sink.split(" -> ");
+    const dummySource = `start-${sink}`;
+    const dummySink = `end-${sink}`;
+    const rankNumber = ranks.getRank(simpleSource)!;
+
+    graph.setNode(dummySource, { isRelevanceDummyNode: true });
+    graph.setNode(dummySink, { isRelevanceDummyNode: true });
+    ranks.set(dummySource, rankNumber);
+    ranks.set(dummySink, rankNumber + 1);
+
+    constraintGraph.setEdge(simpleSource, dummySource);
+    constraintGraph.setEdge(simpleSink, dummySink);
+  });
+}
+
+/**
+ * Reads a rank table (mapping) and returns a rank matrix (array of arrays).
+ *
+ * @param ranks A rank table.
+ * @returns A rank matrix.
+ */
+function readRankTable(ranks: RankTable) {
+  const graphMatrix: NodeId[][] = [];
+  let rankNumber = 0;
+  let layer = ranks.getNodes(rankNumber);
+
+  while (layer) {
+    graphMatrix[rankNumber] = [];
+
+    layer.forEach((_, node) => {
+      graphMatrix[rankNumber].push(node);
+    });
+
+    rankNumber++;
+    layer = ranks.getNodes(rankNumber);
+  }
+
+  return graphMatrix;
+}
+
+/**
+ * Counts the total number of edge crossings in a layered graph.
+ *
+ * @param graph A graph object.
+ * @param graphMatrix A node matrix.
+ * @returns The number of crossings in the graph.
+ */
+export function countTotalCrossings(graph: Graph, graphMatrix: NodeId[][]) {
+  let crossings = 0;
+
+  for (let layerIndex = 1; layerIndex < graphMatrix.length; layerIndex++) {
+    const previousLayer = graphMatrix[layerIndex - 1];
+    const layer = graphMatrix[layerIndex];
+    crossings += countCrossings(graph, previousLayer, layer);
+  }
+
+  return crossings;
+}
+
+/**
+ * Counts the number of crossings between two layers of a graph.
+ *
+ * @remarks
+ * This algorithm is based on Barth et al.'s accumulation tree algorithm. It has
+ * been slightly modified so that the south layer does not need to be smaller
+ * than the north layer. The run time is *O(|E| log|V_s|)*, where *V_s* is the
+ * nodes in the smaller of the two layers.
+ *
+ * @see
+ * [Simple and Efficient Bilayer Cross Counting](https://link.springer.com/chapter/10.1007/3-540-36151-0_13)
+ *
+ * @param graph A graphlib graph object.
+ * @param northLayer Array of nodes in northern layer.
+ * @param southLayer Array of nodes in southern layer.
+ * @returns The number of crossings between the layers.
+ */
+export function countCrossings(
+  graph: Graph,
+  northLayer: NodeId[],
+  southLayer: NodeId[]
+) {
+  let layer0: NodeId[];
+  let layer1: NodeId[];
+
+  if (northLayer.length >= southLayer.length) {
+    layer0 = northLayer;
+    layer1 = southLayer;
+  } else {
+    layer0 = southLayer;
+    layer1 = northLayer;
+  }
+
+  let firstindex = 1;
+
+  while (firstindex < layer1.length) firstindex *= 2;
+
+  const treesize = 2 * firstindex - 1;
+  firstindex -= 1;
+  const tree = new Array(treesize).fill(0);
+  let crosscount = 0;
+
+  const edges = layer0.reduce<Edge[]>((accumulator, node0) => {
+    layer1.forEach((node1) => {
+      if (graph.hasEdge(node0, node1) || graph.hasEdge(node1, node0)) {
+        accumulator.push({ v: node0, w: node1 });
+      }
+    });
+
+    return accumulator;
+  }, []);
+
+  edges.forEach((edge) => {
+    const head = edge.w;
+    const headIndex = layer1.indexOf(head);
+    let index = headIndex + firstindex;
+    tree[index]++;
+
+    while (index > 0) {
+      if (index % 2) crosscount += tree[index + 1];
+      index = Math.floor((index - 1) / 2);
+      tree[index]++;
+    }
+  });
+
+  return crosscount;
+}
+
+/**
+ * Sorts all nodes within their layers based on their barycenters. Sweeps the
+ * layers once from top to bottom and once from bottom to top, viewing the
+ * current layer as mutable and the previous one as immutable. Sorts the
+ * sub-arrays of `graphMatrix` in-place.
+ *
+ * @param graph A graph object.
+ * @param constraintGraph A constraint graph.
+ * @param graphMatrix A node matrix.
+ */
 function sortLayers(
   graph: Graph,
   constraintGraph: Graph,
   graphMatrix: NodeId[][]
 ) {
-  for (let i = 1; i < graphMatrix.length; i++) {
-    const previousLayer = graphMatrix[i - 1];
-    const layer = graphMatrix[i];
+  for (let layerIndex = 1; layerIndex < graphMatrix.length; layerIndex++) {
+    const previousLayer = graphMatrix[layerIndex - 1];
+    const layer = graphMatrix[layerIndex];
 
-    graphMatrix[i] = sweepLayer(
+    graphMatrix[layerIndex] = sweepLayer(
       graph,
       constraintGraph,
       previousLayer,
@@ -83,14 +320,35 @@ function sortLayers(
     );
   }
 
-  for (let i = graphMatrix.length - 2; i >= 0; i--) {
-    const layer = graphMatrix[i];
-    const nextLayer = graphMatrix[i + 1];
+  for (let layerIndex = graphMatrix.length - 2; layerIndex >= 0; layerIndex--) {
+    const layer = graphMatrix[layerIndex];
+    const nextLayer = graphMatrix[layerIndex + 1];
 
-    graphMatrix[i] = sweepLayer(graph, constraintGraph, layer, nextLayer, "up");
+    graphMatrix[layerIndex] = sweepLayer(
+      graph,
+      constraintGraph,
+      layer,
+      nextLayer,
+      "up"
+    );
   }
 }
 
+/**
+ * Sweeps a target layer, sorting its nodes based on the average position of
+ * their neighbors in the fixed layer while taking position constraints into
+ * consideration. If `direction` is `"down"`, `northLayer` is viewed as fixed
+ * and `southLayer` as the target, and vice versa if `direction` is `"up"`.
+ * Returns either a sorted or an unchanged version of the target layer depending
+ * on which one leads to fewer edge crossings.
+ *
+ * @param graph A graph object.
+ * @param constraintGraph A constraint graph.
+ * @param northLayer The *above* node layer.
+ * @param southLayer The *lower* node layer.
+ * @param direction The iteration *direction*.
+ * @returns A sorted layer.
+ */
 function sweepLayer(
   graph: Graph,
   constraintGraph: Graph,
@@ -222,33 +480,31 @@ function sweepLayer(
   return targetLayer;
 }
 
-function unpackSubnodes(graph: Graph, node: NodeId): NodeId[] {
-  const subnodes: NodeId[] = graph.node(node)!.subnodes;
-
-  if (subnodes.length > 1)
-    return subnodes.flatMap((subnode) => unpackSubnodes(graph, subnode));
-
-  return subnodes;
-}
-
+/**
+ * Finds a violated constraint in such a way that resolving it will not lead to
+ * constraint cycles, i.e., an unresolvable pair of constraints.
+ *
+ * @param layer A layer of nodes.
+ * @param constraintGraph A constraint graph.
+ * @returns A violated constraint.
+ */
 function getViolatedConstraint(layer: NodeId[], constraintGraph: Graph) {
   const incomingConstraints: { [node: NodeId]: Edge[] } = {};
   const nodes: NodeId[] = [];
+  const constrainedNodes = layer.filter(
+    (node) => constraintGraph.nodeEdges(node)?.length
+  );
 
-  layer
-    .filter((node) => constraintGraph.nodeEdges(node)?.length)
-    .forEach((node) => {
-      incomingConstraints[node] = [];
-
-      if (!constraintGraph.inEdges(node)?.length) nodes.push(node);
-    });
+  constrainedNodes.forEach((node) => {
+    incomingConstraints[node] = [];
+    if (!constraintGraph.inEdges(node)?.length) nodes.push(node);
+  });
 
   while (nodes.length) {
     const node = nodes.pop()!;
 
     for (const constraint of incomingConstraints[node]) {
       const source = constraint.v;
-
       if (layer.indexOf(source) >= layer.indexOf(node)) return constraint;
     }
 
@@ -268,192 +524,96 @@ function getViolatedConstraint(layer: NodeId[], constraintGraph: Graph) {
   }
 }
 
-function reverseEqualBarycenters(
-  graph: Graph,
-  constraintGraph: Graph,
-  northLayer: NodeId[],
-  southLayer: NodeId[],
-  direction: "down" | "up"
-) {
-  const crossingCount = countCrossings(graph, northLayer, southLayer);
-
-  if (crossingCount === 0) return;
-
-  let targetLayerCopy: NodeId[];
-  let targetLayer: NodeId[];
-  let fixedLayer: NodeId[];
-
-  if (direction === "down") {
-    targetLayerCopy = [...southLayer];
-    targetLayer = southLayer;
-    fixedLayer = northLayer;
-  } else {
-    targetLayerCopy = [...northLayer];
-    targetLayer = northLayer;
-    fixedLayer = southLayer;
-  }
-
-  const barycenters = targetLayerCopy.map(
-    (node) => graph.node(node)!.barycenter
-  );
-
-  for (let i = 0; i < barycenters.length - 1; i++) {
-    const barycenter = barycenters[i];
-    const nextBarycenter = barycenters[i + 1];
-
-    if (barycenter === nextBarycenter) {
-      const node = targetLayerCopy[i];
-      const nextNode = targetLayerCopy[i + 1];
-      targetLayerCopy[i] = nextNode;
-      targetLayerCopy[i + 1] = node;
-    }
-  }
-
-  const newCrossingCount = countCrossings(graph, targetLayerCopy, fixedLayer);
-
-  if (newCrossingCount < crossingCount) {
-    targetLayer.splice(0, targetLayer.length, ...targetLayerCopy);
-  }
-}
-
-function preprocessDataStructures(graph: Graph, ranks: RankTable) {
-  const constraintGraph = new Graph();
-
-  splitNonTightEdges(graph, ranks);
-  handleConjunctNodes(graph, ranks, constraintGraph);
-  handleRelevanceStructures(graph, ranks, constraintGraph);
-
-  return constraintGraph;
-}
-
-function handleRelevanceStructures(
-  graph: Graph,
-  ranks: RankTable,
-  constraintGraph: Graph
-) {
-  const relevanceSinks = graph
-    .nodes()
-    .filter((node) => graph.node(node)?.isRelevanceSink);
-
-  relevanceSinks.forEach((sink) => {
-    const [simpleSource, simpleSink] = sink.split(" -> ");
-    const dummySource = `start-${sink}`;
-    const dummySink = `end-${sink}`;
-    const rankNumber = ranks.getRankNumber(simpleSource)!;
-
-    graph.setNode(dummySource, { isRelevanceDummyNode: true });
-    graph.setNode(dummySink, { isRelevanceDummyNode: true });
-    ranks.set(dummySource, rankNumber);
-    ranks.set(dummySink, rankNumber + 1);
-
-    constraintGraph.setEdge(simpleSource, dummySource);
-    constraintGraph.setEdge(simpleSink, dummySink);
-  });
-}
-
-function handleConjunctNodes(
-  graph: Graph,
-  ranks: RankTable,
-  constraintGraph: Graph
-) {
-  const conjunctNodes = graph
-    .nodes()
-    .filter((node) => graph.node(node)?.isConjunctNode);
-
-  conjunctNodes.forEach((node) => {
-    const startDummyNodeId = `start-${node}`;
-    const endDummyNodeId = `end-${node}`;
-    const children = graph.children(node);
-    const rankNumber = ranks.getRankNumber(children[0])!;
-
-    graph.setNode(startDummyNodeId, { isConjunctDummyNode: true });
-    graph.setNode(endDummyNodeId, { isConjunctDummyNode: true });
-    ranks.set(startDummyNodeId, rankNumber);
-    ranks.set(endDummyNodeId, rankNumber);
-
-    children.forEach((child) => {
-      constraintGraph.setEdge(startDummyNodeId, child);
-      constraintGraph.setEdge(child, endDummyNodeId);
-    });
-  });
-}
-
 /**
- * Splits non-tight edges into a series of tight edges by inserting dummy nodes
- * at each rank between the source and target of the edge.
+ * Recursively unpacks the subnodes of a meta node (and their subnodes if any
+ * and so on). Returns an array of all subnodes.
  *
- * @param graph A graphlib graph object.
- * @param ranks A ranking of the nodes in the graph.
+ * @param graph A graph object.
+ * @param node An ID of a meta node.
+ * @returns The IDs of *all* subnodes of `node`.
  */
-function splitNonTightEdges(graph: Graph, ranks: RankTable) {
-  graph.edges().forEach((edge) => {
-    const { v, w } = edge;
-    const vRankNumber = ranks.getRankNumber(v)!;
-    const wRankNumber = ranks.getRankNumber(w)!;
-    const vY = graph.node(v)!.y;
-    const edgeData = graph.edge(edge)!;
-    let i = 0;
-    let previousNodeId = v;
+function unpackSubnodes(graph: Graph, node: NodeId): NodeId[] {
+  const subnodes: NodeId[] = graph.node(node)!.subnodes;
 
-    // Relevance cluster
-    if (vRankNumber === wRankNumber) {
-      const aboveRank = vRankNumber - 0.5;
-      const belowRank = vRankNumber + 0.5;
-      const aboveDummyNodeId = `above-${v}-${w}`;
-      const belowDummyNodeId = `below-${v}-${w}`;
-      const [aboveClusterNode, belowClusterNode] = w.split(" -> ");
-      const clusterMetaNodeId = `meta-${aboveClusterNode}`;
+  if (subnodes.length > 1)
+    return subnodes.flatMap((subnode) => unpackSubnodes(graph, subnode));
 
-      graph.setNode(aboveDummyNodeId, {
-        isRelevanceDummyNode: true,
-        hasRelevanceParent: true,
-        y: vY - 0.5 * NODE_Y_SPACING,
-      });
-      ranks.set(aboveDummyNodeId, aboveRank);
-      graph.setNode(belowDummyNodeId, {
-        isRelevanceDummyNode: true,
-        hasRelevanceParent: true,
-        y: vY + 0.5 * NODE_Y_SPACING,
-      });
-      ranks.set(belowDummyNodeId, belowRank);
-      graph.setEdge(aboveDummyNodeId, belowDummyNodeId);
-
-      appendNodeValues(graph, aboveClusterNode, { hasRelevanceParent: true });
-      appendNodeValues(graph, belowClusterNode, { hasRelevanceParent: true });
-
-      graph.setNode(clusterMetaNodeId, {
-        isRelevanceClusterMetaNode: true,
-        aboveNodes: [aboveClusterNode, aboveDummyNodeId],
-        belowNodes: [belowClusterNode, belowDummyNodeId],
-      });
-      graph.setParent(aboveDummyNodeId, clusterMetaNodeId);
-      graph.setParent(belowDummyNodeId, clusterMetaNodeId);
-      graph.setParent(aboveClusterNode, clusterMetaNodeId);
-      graph.setParent(belowClusterNode, clusterMetaNodeId);
-    }
-
-    for (let j = vRankNumber + 1; j < wRankNumber; j++) {
-      const dummyNodeId = `${v}-${w}-${i}`;
-      const dummyNodeY = vY + (i + 1) * NODE_Y_SPACING;
-
-      graph.setNode(dummyNodeId, {
-        isDummyNode: true,
-        y: dummyNodeY,
-        edgeData,
-      });
-      graph.setEdge(previousNodeId, dummyNodeId);
-      ranks.set(dummyNodeId, j);
-
-      i++;
-      previousNodeId = dummyNodeId;
-    }
-
-    if (i > 0) {
-      graph.setEdge(previousNodeId, w);
-      graph.removeEdge(edge);
-    }
-  });
+  return subnodes;
 }
+
+// function reverseWithinLayers(
+//   graph: Graph,
+//   constraintGraph: Graph,
+//   graphMatrix: NodeId[][]
+// ) {
+//   for (let i = 1; i < graphMatrix.length; i++) {
+//     const previousLayer = graphMatrix[i - 1];
+//     const layer = graphMatrix[i];
+
+//     graphMatrix[i] = sweepLayer(
+//       graph,
+//       constraintGraph,
+//       previousLayer,
+//       layer,
+//       "down"
+//     );
+//   }
+
+//   for (let i = graphMatrix.length - 2; i >= 0; i--) {
+//     const layer = graphMatrix[i];
+//     const nextLayer = graphMatrix[i + 1];
+
+//     graphMatrix[i] = sweepLayer(graph, constraintGraph, layer, nextLayer, "up");
+//   }
+// }
+
+// function reverseEqualBarycenters(
+//   graph: Graph,
+//   constraintGraph: Graph,
+//   northLayer: NodeId[],
+//   southLayer: NodeId[],
+//   direction: "down" | "up"
+// ) {
+//   const crossingCount = countCrossings(graph, northLayer, southLayer);
+
+//   if (crossingCount === 0) return;
+
+//   let targetLayerCopy: NodeId[];
+//   let targetLayer: NodeId[];
+//   let fixedLayer: NodeId[];
+
+//   if (direction === "down") {
+//     targetLayerCopy = [...southLayer];
+//     targetLayer = southLayer;
+//     fixedLayer = northLayer;
+//   } else {
+//     targetLayerCopy = [...northLayer];
+//     targetLayer = northLayer;
+//     fixedLayer = southLayer;
+//   }
+
+//   const barycenters = targetLayerCopy.map(
+//     (node) => graph.node(node)!.barycenter
+//   );
+
+//   for (let i = 0; i < barycenters.length - 1; i++) {
+//     const barycenter = barycenters[i];
+//     const nextBarycenter = barycenters[i + 1];
+
+//     if (barycenter === nextBarycenter) {
+//       const node = targetLayerCopy[i];
+//       const nextNode = targetLayerCopy[i + 1];
+//       targetLayerCopy[i] = nextNode;
+//       targetLayerCopy[i + 1] = node;
+//     }
+//   }
+
+//   const newCrossingCount = countCrossings(graph, targetLayerCopy, fixedLayer);
+
+//   if (newCrossingCount < crossingCount) {
+//     targetLayer.splice(0, targetLayer.length, ...targetLayerCopy);
+//   }
+// }
 
 // /**
 //  * Sweeps a layer of the graph, updating the barycenter of each node in the
@@ -503,112 +663,3 @@ function splitNonTightEdges(graph: Graph, ranks: RankTable) {
 
 //   layer.sort((v, w) => graph.node(v)!.barycenter - graph.node(w)!.barycenter);
 // }
-
-/**
- * @private
- *
- * @param ranks A rank table (mapping).
- * @returns A rank matrix (array of arrays).
- */
-function readRankTable(ranks: RankTable) {
-  const graphMatrix: NodeId[][] = [];
-  let rankNumber = 0;
-  let layer = ranks.getRankNodes(rankNumber);
-
-  while (layer) {
-    graphMatrix[rankNumber] = [];
-
-    layer.forEach((_, node) => {
-      graphMatrix[rankNumber].push(node);
-    });
-
-    rankNumber++;
-    layer = ranks.getRankNodes(rankNumber);
-  }
-
-  return graphMatrix;
-}
-
-/**
- * @private
- *
- * @param graph A graphlib graph object.
- * @param graphMatrix A matrix of nodes.
- * @returns The total number of crossings in the graph.
- */
-export function countTotalCrossings(graph: Graph, graphMatrix: NodeId[][]) {
-  let crossings = 0;
-
-  for (let i = 1; i < graphMatrix.length; i++) {
-    const previousLayer = graphMatrix[i - 1];
-    const layer = graphMatrix[i];
-    crossings += countCrossings(graph, previousLayer, layer);
-  }
-
-  return crossings;
-}
-
-/**
- * Counts the number of crossings between two layers of a graph. The algorithm
- * is based on Barth et al.'s accumulation tree.
- * @private
- *
- * @see https://link.springer.com/chapter/10.1007/3-540-36151-0_13
- * @remarks Run time of O(|E| * log|V_small|), where V_small is the smaller of
- * the two layers.
- *
- * @param graph A graphlib graph object.
- * @param northLayer Array of nodes in northern layer.
- * @param southLayer Array of nodes in southern layer.
- * @returns The number of crossings between the layers.
- */
-export function countCrossings(
-  graph: Graph,
-  northLayer: NodeId[],
-  southLayer: NodeId[]
-) {
-  let layer0: NodeId[];
-  let layer1: NodeId[];
-
-  if (northLayer.length >= southLayer.length) {
-    layer0 = northLayer;
-    layer1 = southLayer;
-  } else {
-    layer0 = southLayer;
-    layer1 = northLayer;
-  }
-
-  let firstindex = 1;
-
-  while (firstindex < layer1.length) firstindex *= 2;
-
-  const treesize = 2 * firstindex - 1;
-  firstindex -= 1;
-  const tree = new Array(treesize).fill(0);
-  let crosscount = 0;
-
-  const edges = layer0.reduce<Edge[]>((accumulator, node0) => {
-    layer1.forEach((node1) => {
-      if (graph.hasEdge(node0, node1) || graph.hasEdge(node1, node0)) {
-        accumulator.push({ v: node0, w: node1 });
-      }
-    });
-
-    return accumulator;
-  }, []);
-
-  edges.forEach((edge) => {
-    const head = edge.w;
-    const headIndex = layer1.indexOf(head);
-    let index = headIndex + firstindex;
-    tree[index]++;
-
-    while (index > 0) {
-      if (index % 2) crosscount += tree[index + 1];
-      index = Math.floor((index - 1) / 2);
-      tree[index]++;
-    }
-  });
-
-  return crosscount;
-}

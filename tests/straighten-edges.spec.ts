@@ -14,6 +14,8 @@ describe("Straighten Edges", () => {
     const graph = new Graph();
     const graphMatrix: NodeId[][] = [];
 
+    graph.setGraph({});
+
     const result = straightenEdges(graph, graphMatrix);
 
     assert.isUndefined(result);
@@ -22,7 +24,9 @@ describe("Straighten Edges", () => {
   it("should assign x properties to nodes", () => {
     const graph = new Graph();
 
+    graph.setGraph({});
     graph.setDefaultNodeLabel(() => ({}));
+
     graph.setNode("a");
     graph.setNode("b");
     graph.setNode("c");
@@ -41,7 +45,9 @@ describe("Straighten Edges", () => {
   it("should assign non-conflicting x properties to nodes", () => {
     const graph = new Graph();
 
+    graph.setGraph({});
     graph.setDefaultNodeLabel(() => ({}));
+
     graph.setNode("a");
     graph.setNode("b");
     graph.setNode("c");

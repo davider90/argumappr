@@ -21,6 +21,9 @@ describe("Node Layer Assignment", () => {
   it("should assign nodes to layers", () => {
     const graph = new Graph();
 
+    graph.setDefaultNodeLabel(() => ({}));
+    graph.setDefaultEdgeLabel(() => ({}));
+
     graph.setNode("a");
     graph.setNode("b");
     graph.setNode("c");
@@ -29,14 +32,16 @@ describe("Node Layer Assignment", () => {
 
     const ranks = layerNodes(graph);
 
-    assert.strictEqual(ranks.getRankNumber("a"), 0);
-    assert.strictEqual(ranks.getRankNumber("b"), 1);
-    assert.strictEqual(ranks.getRankNumber("c"), 2);
+    assert.strictEqual(ranks.getRank("a"), 0);
+    assert.strictEqual(ranks.getRank("b"), 1);
+    assert.strictEqual(ranks.getRank("c"), 2);
   });
 
   it("test", () => {
     const g = new Graph();
+
     g.setDefaultNodeLabel(() => ({}));
+    g.setDefaultEdgeLabel(() => ({}));
 
     g.setNode("b");
     g.setNode("c");
@@ -84,7 +89,9 @@ describe("Node Layer Assignment", () => {
 
   it("test2", () => {
     const g = new Graph();
+
     g.setDefaultNodeLabel(() => ({}));
+    g.setDefaultEdgeLabel(() => ({}));
 
     g.setNode("a");
     g.setNode("b");

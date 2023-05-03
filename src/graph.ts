@@ -1,11 +1,16 @@
 import { Edge, Graph as graphlibGraph, GraphOptions } from "graphlib";
 import { appendNodeValues, NodeId } from "./utils";
 
+/**
+ * Provides a graph data structure that extents graphlib's and adds support for
+ * relevance edges and conjunct nodes.
+ */
 class Graph extends graphlibGraph {
   constructor(options?: GraphOptions) {
     super(options);
   }
 
+  // Overrides erroneous return type.
   override graph(): any {
     return super.graph();
   }

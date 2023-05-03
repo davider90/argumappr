@@ -10,60 +10,51 @@ export interface EdgeAndLabel extends Edge {
   label?: any;
 }
 
-// TODO: This class seems to leads to crashes sometimes. Look into it.
+/**
+ * Provides a mapping between node IDs and their ranks.
+ */
 export class RankTable {
-  private nodeToRank: Map<NodeId, number>;
-  private rankToNode: Map<number, Map<NodeId, true>>;
-
-  constructor() {
-    this.nodeToRank = new Map();
-    this.rankToNode = new Map();
-  }
+  private nodeToRank = new Map<NodeId, number>();
+  private rankToNodes = new Map<number, Set<NodeId>>();
 
   set(node: NodeId, rank: number) {
-    const oldRankNumber = this.getRankNumber(node);
-    const existingRankEntries = this.getRankNodes(rank);
+    const oldRankIndex = this.getRank(node);
 
-    if (rank === oldRankNumber) return;
+    if (rank === oldRankIndex) return;
 
-    if (oldRankNumber !== undefined) {
-      const oldRank = this.getRankNodes(oldRankNumber)!;
+    if (oldRankIndex !== undefined) {
+      const oldRank = this.getNodes(oldRankIndex)!;
 
       oldRank.delete(node);
-
-      if (oldRank.size === 0) {
-        this.rankToNode.delete(oldRankNumber);
-      }
+      if (oldRank.size === 0) this.rankToNodes.delete(oldRankIndex);
+      this.nodeToRank.delete(node);
     }
 
-    if (existingRankEntries) {
-      existingRankEntries!.set(node, true);
+    const rankEntries = this.getNodes(rank);
+
+    if (rankEntries) {
+      rankEntries.add(node);
     } else {
-      const newRankEntry = new Map<NodeId, true>([[node, true]]);
-      this.rankToNode.set(rank, newRankEntry);
+      this.rankToNodes.set(rank, new Set<NodeId>([node]));
     }
 
     this.nodeToRank.set(node, rank);
   }
 
-  getRankNumber(node: NodeId) {
+  getRank(node: NodeId) {
     return this.nodeToRank.get(node);
   }
 
-  getRankNodes(rank: number) {
-    return this.rankToNode.get(rank);
+  getNodes(rank: number) {
+    return this.rankToNodes.get(rank);
   }
 
-  getSize() {
-    return this.nodeToRank.size;
+  getMinRankIndex() {
+    return Math.min(...this.rankToNodes.keys());
   }
 
-  getSmallestRank() {
-    return Math.min(...this.rankToNode.keys());
-  }
-
-  getLargestRank() {
-    return Math.max(...this.rankToNode.keys());
+  getMaxRankIndex() {
+    return Math.max(...this.rankToNodes.keys());
   }
 }
 
@@ -75,6 +66,8 @@ export class RankTable {
  */
 export function buildSimpleGraph(graph: Graph) {
   const simpleGraph = new Graph({ directed: true });
+
+  simpleGraph.setDefaultNodeLabel(() => ({}));
 
   graph.nodes().forEach((nodeId) => {
     simpleGraph.setNode(nodeId);
@@ -137,6 +130,12 @@ const EDGE_DEFAULTS = {
   labelpos: "r",
 };
 
+/**
+ * Updates the input graph with the attributes of the layout graph.
+ *
+ * @param inputGraph A graph object.
+ * @param layoutGraph A copied and laid out graph object.
+ */
 export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
   inputGraph.nodes().forEach((node) => {
     const inputLabel = inputGraph.node(node);
@@ -170,10 +169,19 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
   const inputGraphLabel = inputGraph.graph();
   const layoutGraphLabel = layoutGraph.graph();
 
-  inputGraphLabel.width = layoutGraphLabel.width + NODE_WIDTH;
-  // inputGraphLabel.height = layoutGraphLabel.height;
+  if (inputGraphLabel) {
+    inputGraphLabel.width = layoutGraphLabel.width + NODE_WIDTH;
+    inputGraphLabel.height = layoutGraphLabel.height;
+  }
 }
 
+/**
+ * Creates a new graph object, copies the input graph, adds default values for
+ * missing attributes and returns the new graph.
+ *
+ * @param inputGraph A graph object.
+ * @returns A new graph object for layouting.
+ */
 export function buildLayoutGraph(inputGraph: Graph) {
   const layoutGraph = new Graph({ directed: true, compound: true });
   const inputGraphLabel = inputGraph.graph() as any;

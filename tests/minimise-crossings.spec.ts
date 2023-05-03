@@ -201,7 +201,9 @@ describe("Minimise Crossings", () => {
 
     it("should eliminate crossings when possible - complex", () => {
       const graph = new Graph();
+
       graph.setDefaultNodeLabel(() => ({}));
+      graph.setDefaultEdgeLabel(() => ({}));
 
       graph.setNode("b");
       graph.setNode("f");
@@ -248,7 +250,9 @@ describe("Minimise Crossings", () => {
 
     it("should minimise the number of crossings", () => {
       const graph = new Graph();
+
       graph.setDefaultNodeLabel(() => ({}));
+      graph.setDefaultEdgeLabel(() => ({}));
 
       graph.setNode("a");
       graph.setNode("b");

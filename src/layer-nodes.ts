@@ -1,12 +1,6 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
-import {
-  EdgeAndLabel,
-  NODE_Y_SPACING,
-  NodeId,
-  RankTable,
-  appendNodeValues,
-} from "./utils";
+import { EdgeAndLabel, NODE_Y_SPACING, NodeId, RankTable } from "./utils";
 
 const MAX_LOOPS = 100;
 
@@ -14,12 +8,20 @@ const MAX_LOOPS = 100;
 //       minimum edge length constraints.
 
 /**
- * Assigns all nodes of the input graph to optimal ranks and returns the layers.
- * The algorithm is based on Gansner et al.'s network simplex algorithm.
+ * Assigns all nodes of the input graph to optimal ranks, gives them
+ * *y*-coordinates based on their layer and returns the layers.
  *
- * @remarks Non-proven polynomial run time and "fast in practice".
+ * @remarks
+ * This algorithm is based on Gansner et al.'s network simplex algorithm. It
+ * calculates a feasible tree and then iteratively improves it by moving nodes
+ * based on the cut values of their edges. The results are optimal. The
+ * algorithm has a non-proven (assumed) polynomial run time and is reported to
+ * be fast in practice.
  *
- * @param graph A graphlib graph object. Must be directed.
+ * @see
+ * [A technique for drawing directed graphs](https://ieeexplore.ieee.org/document/221135)
+ *
+ * @param graph A graph object. Must be directed and acyclic.
  * @returns A rank table.
  */
 export default function layerNodes(graph: Graph) {
@@ -28,25 +30,18 @@ export default function layerNodes(graph: Graph) {
   const treeAndRanks = getFeasibleTree(graph);
   const { tree } = treeAndRanks;
   let { ranks } = treeAndRanks;
-  const negativeEdgeIterator = new NegativeCutValueEdgeIterator(tree);
+  const edgeIterator = new NegativeCutValueEdgeIterator(tree);
   let loopCount = 0;
 
-  while (negativeEdgeIterator.hasNext() && loopCount < MAX_LOOPS) {
-    const negativeEdge = negativeEdgeIterator.next()!;
-    const minSlackEdge = getNontreeMinSlackEdge(
-      graph,
-      tree,
-      ranks,
-      negativeEdge
-    )!;
+  while (edgeIterator.hasNext() && loopCount < MAX_LOOPS) {
+    const treeEdge = edgeIterator.next()!;
+    const nontreeEdge = getNontreeMinSlackEdge(graph, tree, ranks, treeEdge);
 
-    if (minSlackEdge === null) {
-      console.warn("Non-tree min slack edge did not exist");
-    }
+    if (!nontreeEdge) break;
 
-    tree.removeEdge(negativeEdge);
-    tree.setEdge(minSlackEdge);
-    ranks = updateTreeValues(graph, tree, ranks, minSlackEdge);
+    tree.removeEdge(treeEdge);
+    tree.setEdge(nontreeEdge, graph.edge(nontreeEdge));
+    ranks = updateTreeValues(graph, tree, ranks, nontreeEdge);
 
     loopCount++;
   }
@@ -60,16 +55,15 @@ export default function layerNodes(graph: Graph) {
   return ranks;
 }
 
-function setYCoordinates(graph: Graph, ranks: RankTable) {
-  graph.nodes().forEach((node) => {
-    const rank = ranks.getRankNumber(node)!;
-    const y = rank * NODE_Y_SPACING;
-
-    appendNodeValues(graph, node, { y });
-  });
-}
-
-export function mergeConjunctNodes(graph: Graph) {
+/**
+ * Merges the subnodes of conjunct nodes into a single node with all inedges
+ * and outedges of the subnodes. Stores away any labels for later restoration.
+ * Returns the conjunct nodes.
+ *
+ * @param graph A graph object.
+ * @returns The conjunct nodes.
+ */
+function mergeConjunctNodes(graph: Graph) {
   const conjunctNodes = graph
     .nodes()
     .filter((node) => graph.node(node)?.isConjunctNode);
@@ -86,14 +80,14 @@ export function mergeConjunctNodes(graph: Graph) {
       inEdges.forEach((inEdge) => {
         const { v } = inEdge;
         const edgeLabel = graph.edge(inEdge);
-        graph.setEdge(v, node);
+        graph.setEdge(v, node, edgeLabel);
         originalEdges.push({ ...inEdge, label: edgeLabel });
       });
 
       outEdges.forEach((outEdge) => {
         const { w } = outEdge;
         const edgeLabel = graph.edge(outEdge);
-        graph.setEdge(node, w);
+        graph.setEdge(node, w, edgeLabel);
         originalEdges.push({ ...outEdge, label: edgeLabel });
       });
 
@@ -108,198 +102,14 @@ export function mergeConjunctNodes(graph: Graph) {
   return conjunctNodes;
 }
 
-export function splitConjunctNodes(
-  graph: Graph,
-  ranks: RankTable,
-  conjunctNodes: NodeId[]
-) {
-  conjunctNodes.forEach((node) => {
-    const { subnodeData, originalEdges } = graph.node(node);
-
-    Object.keys(subnodeData).forEach((subnode) => {
-      graph.setNode(subnode, subnodeData[subnode]);
-      graph.setParent(subnode, node);
-      ranks.set(subnode, ranks.getRankNumber(node)!);
-    });
-
-    originalEdges.forEach((edge: EdgeAndLabel) => {
-      const { v, w, label, name } = edge;
-      graph.setEdge(v, w, label, name);
-    });
-
-    graph.nodeEdges(node)!.forEach((edge) => {
-      graph.removeEdge(edge);
-    });
-  });
-}
-
-export function balanceLayering(graph: Graph, ranks: RankTable) {
-  graph.nodes().forEach((node) => {
-    const inDegree = (graph.inEdges(node) || []).length;
-    const outDegree = (graph.outEdges(node) || []).length;
-
-    if (inDegree === outDegree) {
-      const parentsRanks = (graph.predecessors(node) || []).map(
-        (parent) => ranks.getRankNumber(parent)!
-      );
-      const childrenRanks = (graph.successors(node) || []).map(
-        (child) => ranks.getRankNumber(child)!
-      );
-      const maxParentRank = Math.max(...parentsRanks);
-      const minChildRank = Math.min(...childrenRanks);
-
-      if (minChildRank - maxParentRank > 2) {
-        const startRankNumber = parentsRanks.length > 0 ? maxParentRank + 1 : 0;
-        const endRankNumber =
-          childrenRanks.length > 0 ? minChildRank - 1 : ranks.getLargestRank();
-        let smallestFeasibleRankNumber = ranks.getRankNumber(node)!;
-        let smallestFeasibleRankSize = ranks.getRankNodes(
-          smallestFeasibleRankNumber
-        )!.size;
-
-        for (let i = startRankNumber; i <= endRankNumber; i++) {
-          const iRankSize = ranks.getRankNodes(i)!.size;
-
-          if (iRankSize < smallestFeasibleRankSize) {
-            smallestFeasibleRankNumber = i;
-            smallestFeasibleRankSize = iRankSize;
-          }
-        }
-
-        ranks.set(node, smallestFeasibleRankNumber);
-      }
-    }
-  });
-}
-
-export function normalizeRanks(graph: Graph, ranks: RankTable) {
-  const smallestRank = ranks.getSmallestRank();
-
-  graph.nodes().forEach((node) => {
-    const rank = ranks.getRankNumber(node)!;
-    ranks.set(node, rank - smallestRank);
-  });
-}
-
-export function updateTreeValues(
-  graph: Graph,
-  tree: Graph,
-  ranks: RankTable,
-  minSlackEdge: Edge
-) {
-  const rootNode = graph.nodes()[0];
-  const { v, w } = minSlackEdge;
-  const commonAncestor = getClosestCommonAncestor(tree, v, w)!;
-
-  if (commonAncestor === rootNode) {
-    const newRanks = setRanks(tree);
-    setCutValues(graph, tree);
-    return newRanks;
-  }
-
-  updateRanks(tree, ranks, commonAncestor);
-
-  const { number, minSubtreeNumber } = tree.node(commonAncestor)!;
-  const stack: NodeId[] = tree.neighbors(commonAncestor)!.filter((neighbor) => {
-    return number < tree.node(neighbor)!.number;
-  });
-
-  postorderNumber(tree, commonAncestor, stack, minSubtreeNumber);
-  postorderSetCutValues(graph, tree, commonAncestor, stack);
-
-  return ranks;
-}
-
-export function updateRanks(
-  tree: Graph,
-  ranks: RankTable,
-  commonAncestor: NodeId
-) {
-  const ancestorNumber = tree.node(commonAncestor)!.number;
-  const subtreeNodes: NodeId[] = tree
-    .neighbors(commonAncestor)!
-    .filter((neighbor) => {
-      const neighborNumber = tree.node(neighbor)!.number;
-      return neighborNumber < ancestorNumber;
-    });
-
-  for (const node of subtreeNodes) {
-    const nodeNumber = tree.node(node)!.number;
-
-    tree.neighbors(node)!.forEach((neighbor) => {
-      const neighborNumber = tree.node(neighbor)!.number;
-      if (neighborNumber < nodeNumber) subtreeNodes.push(neighbor);
-    });
-  }
-
-  const newRanks = setRanks(tree, subtreeNodes);
-
-  subtreeNodes.forEach((node) => {
-    ranks.set(node, newRanks.getRankNumber(node)!);
-  });
-}
-
-export function getClosestCommonAncestor(
-  tree: Graph,
-  node0: NodeId,
-  node1: NodeId
-) {
-  const { number: node0Number } = tree.node(node0)!;
-  const { number: node1Number } = tree.node(node1)!;
-  const lowestNumber = Math.min(node0Number, node1Number);
-  const highestNumber = Math.max(node0Number, node1Number);
-  const nodes = tree.neighbors(node0)!;
-
-  for (const node of nodes) {
-    const { number, minSubtreeNumber } = tree.node(node)!;
-
-    if (minSubtreeNumber <= highestNumber && lowestNumber <= number)
-      return node;
-
-    tree.neighbors(node)!.forEach((neighbor) => {
-      if (!nodes.includes(neighbor)) nodes.push(neighbor);
-    });
-  }
-}
-
-export function getFeasibleTree(graph: Graph) {
-  const ranks = setRanks(graph);
-  const tree = getTightTree(graph, ranks);
-  if (graph.edgeCount() === 0) return { tree, ranks };
-
-  while (tree.nodeCount() < graph.nodeCount()) {
-    const { minSlackEdge, minSlack } = getMinSlack(graph, tree, ranks);
-    if (minSlackEdge === null) {
-      console.warn("Min slack edge in feasible tree does not exist");
-      break;
-    }
-    const { v, w } = minSlackEdge!;
-    let delta: number;
-    let newNode: NodeId;
-
-    if (tree.hasNode(v)) {
-      delta = minSlack;
-      newNode = w;
-    } else {
-      delta = -minSlack;
-      newNode = v;
-    }
-
-    tree.setNode(newNode);
-    tree.setEdge(minSlackEdge!);
-
-    for (const node of graph.nodes()) {
-      if (node === newNode) continue;
-      const newRank = ranks.getRankNumber(node)! + delta;
-      ranks.set(node, newRank);
-    }
-  }
-
-  setCutValues(graph, tree);
-
-  return { tree, ranks };
-}
-
+/**
+ * Merges relevance structures into a single node with all inedges and outedges
+ * of the subnodes. Stores away any labels for later restoration. Returns the
+ * meta relevance nodes.
+ *
+ * @param graph A grapb object.
+ * @returns The meta relevance nodes.
+ */
 function mergeRelevanceStructures(graph: Graph) {
   const relevanceSinks = graph
     .nodes()
@@ -348,83 +158,77 @@ function mergeRelevanceStructures(graph: Graph) {
   return metaRelevanceNodes;
 }
 
-function splitRelevanceStructures(
-  graph: Graph,
-  ranks: RankTable,
-  metaRelevanceNodes: NodeId[]
-) {
-  if (!metaRelevanceNodes.length) return;
+/**
+ * Sets an initial rank to all nodes, constructs a tight tree, greedily grows
+ * the tree till it spans all nodes, sets initial cut values for all edges and
+ * returns the tree and the ranks.
+ *
+ * @param graph A graph object.
+ * @returns The feasible tree and the ranks.
+ */
+function getFeasibleTree(graph: Graph) {
+  const ranks = setRanks(graph);
+  const tree = getTightTree(graph, ranks);
 
-  const relevanceStructureNodes: NodeId[] = [];
-  let sink = "";
-  let relevanceSource = "";
-  let relevanceSink = "";
+  if (graph.edgeCount() === 0) return { tree, ranks };
 
-  metaRelevanceNodes.forEach((metaRelevanceNode) => {
-    const { subnodeData, originalEdges } = graph.node(metaRelevanceNode);
+  while (tree.nodeCount() < graph.nodeCount()) {
+    const { minSlack, minSlackEdge } = getMinSlack(graph, tree, ranks);
+    const { v, w } = minSlackEdge;
+    let delta: number;
+    let newNode: NodeId;
 
-    Object.keys(subnodeData).forEach((subnode) => {
-      graph.setNode(subnode, subnodeData[subnode]);
-      ranks.set(subnode, ranks.getRankNumber(metaRelevanceNode)!);
-      relevanceStructureNodes.push(subnode);
+    if (tree.hasNode(v)) {
+      delta = minSlack;
+      newNode = w;
+    } else {
+      delta = -minSlack;
+      newNode = v;
+    }
 
-      if (subnodeData[subnode].isRelevanceSource) {
-        relevanceSource = subnode;
-      } else if (subnodeData[subnode].isRelevanceSink) {
-        const incidentNodes = subnode.split(" -> ");
-        sink = incidentNodes[1];
-        relevanceSink = subnode;
-      }
-    });
+    tree.setNode(newNode, graph.node(newNode));
+    tree.setEdge(minSlackEdge, graph.edge(minSlackEdge));
 
-    originalEdges.forEach((edge: EdgeAndLabel) => {
-      const { v, w, label, name } = edge;
-      graph.setEdge(v, w, label, name);
-    });
+    for (const node of graph.nodes()) {
+      if (node === newNode) continue;
+      const newRank = ranks.getRank(node)! + delta;
+      ranks.set(node, newRank);
+    }
+  }
 
-    graph.removeNode(metaRelevanceNode);
-  });
+  setCutValues(graph, tree);
 
-  propegateRankIncrement(graph, ranks, sink, 1);
-  ranks.set(relevanceSource, ranks.getRankNumber(relevanceSource)! - 0.5);
-  propegateRankIncrement(graph, ranks, relevanceSink, 1);
-  ranks.set(relevanceSink, ranks.getRankNumber(relevanceSink)! + 0.5);
+  return { tree, ranks };
 }
 
-function propegateRankIncrement(
-  graph: Graph,
-  ranks: RankTable,
-  node: NodeId,
-  delta: number
-) {
-  ranks.set(node, ranks.getRankNumber(node)! + delta);
-  const successors = graph.successors(node) || [];
-
-  successors.forEach((successor) => {
-    propegateRankIncrement(graph, ranks, successor, delta);
-  });
-}
-
-export function setRanks(graph: Graph, nodeList?: NodeId[]) {
+/**
+ * Greedily sets initial ranks to nodes. If a list of nodes is provided, only
+ * those nodes are ranked. Otherwise, all nodes are ranked. Returns the ranks.
+ *
+ * @param graph A graph object.
+ * @param nodeList An optional list of nodes to rank.
+ * @returns A rank table.
+ */
+function setRanks(graph: Graph, nodeList?: NodeId[]) {
   const nodes = nodeList || graph.nodes();
   const ranks = new RankTable();
 
   while (nodes.length > 0) {
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
+    for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+      const node = nodes[nodeIndex];
       const inEdges = graph.inEdges(node) || [];
 
       if (inEdges.length === 0) {
         ranks.set(node, 0);
-        nodes.splice(i, 1);
-        i--;
+        nodes.splice(nodeIndex, 1);
+        nodeIndex--;
       } else {
         const parents = inEdges.map((e) => e.v);
         let maxParentRank = -Infinity;
 
-        for (let j = 0; j < parents.length; j++) {
-          const parent = parents[j];
-          const parentRank = ranks.getRankNumber(parent);
+        for (let parentIndex = 0; parentIndex < parents.length; parentIndex++) {
+          const parent = parents[parentIndex];
+          const parentRank = ranks.getRank(parent);
 
           if (parentRank === undefined) {
             maxParentRank = -Infinity;
@@ -436,8 +240,8 @@ export function setRanks(graph: Graph, nodeList?: NodeId[]) {
 
         if (maxParentRank !== -Infinity) {
           ranks.set(node, maxParentRank + 1);
-          nodes.splice(i, 1);
-          i--;
+          nodes.splice(nodeIndex, 1);
+          nodeIndex--;
         }
       }
     }
@@ -446,30 +250,35 @@ export function setRanks(graph: Graph, nodeList?: NodeId[]) {
   return ranks;
 }
 
-export function getTightTree(graph: Graph, ranks: RankTable) {
+/**
+ * Constructs a tight tree for the given graph and ranks and returns it.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @returns A tight tree.
+ */
+function getTightTree(graph: Graph, ranks: RankTable) {
   if (graph.nodeCount() === 0) return new Graph();
 
   const tightTree = new Graph();
   const node = graph.nodes()[0];
   const edges = graph.nodeEdges(node) || [];
 
-  tightTree.setNode(node);
+  tightTree.setNode(node, graph.node(node));
 
   for (const edge of edges) {
     const { v, w } = edge;
 
     if (tightTree.hasNode(v) && tightTree.hasNode(w)) continue;
 
-    const rankDistance = Math.abs(
-      ranks.getRankNumber(v)! - ranks.getRankNumber(w)!
-    );
+    const rankDistance = Math.abs(ranks.getRank(v)! - ranks.getRank(w)!);
 
     if (rankDistance === 1) {
       const newNode = tightTree.hasNode(v) ? w : v;
       const newEdges = graph.nodeEdges(newNode)!;
 
-      tightTree.setNode(newNode);
-      tightTree.setEdge(edge);
+      tightTree.setNode(newNode, graph.node(newNode));
+      tightTree.setEdge(edge, graph.edge(edge));
       edges.push(...newEdges);
     }
   }
@@ -477,66 +286,121 @@ export function getTightTree(graph: Graph, ranks: RankTable) {
   return tightTree;
 }
 
-export function setCutValues(graph: Graph, tree: Graph) {
-  const rootNode = graph.nodes()[0];
-  const stack: NodeId[] = [];
+/**
+ * Finds the smallest slack associated with an edge that connects a tree node
+ * with a non-tree one. Returns the slack and the edge.
+ *
+ * @param graph A graph object.
+ * @param tree A non-spanning tree.
+ * @param ranks A rank table.
+ * @returns The minimum slack and its associated edge.
+ */
+function getMinSlack(graph: Graph, tree: Graph, ranks: RankTable) {
+  let minSlack = Infinity;
+  let minSlackEdge: Edge = { v: "", w: "" };
 
-  postorderNumber(tree, rootNode, stack, 1);
-  postorderSetCutValues(graph, tree, rootNode, stack);
+  for (const edge of graph.edges()) {
+    const { v, w } = edge;
+
+    if (tree.hasNode(v) === tree.hasNode(w)) continue;
+
+    const rankDistance = Math.abs(ranks.getRank(v)! - ranks.getRank(w)!);
+    const slack = rankDistance - 1;
+
+    if (slack < minSlack) {
+      minSlack = slack;
+      minSlackEdge = edge;
+    }
+  }
+
+  return { minSlack, minSlackEdge };
 }
 
-export function postorderNumber(
+/**
+ * Sets cut values for all edges in the tree. *Cut value* is defined as the sum
+ * of weights of all edges going from the tail component to the head component
+ * minus the sum of weights of all edges going the *other way*.
+ *
+ * @param graph A graph object.
+ * @param tree A spanning tree.
+ */
+function setCutValues(graph: Graph, tree: Graph) {
+  const rootNode = graph.nodes()[0];
+  const nodeStack: NodeId[] = [];
+
+  postorderNumber(tree, rootNode, nodeStack, 1);
+  postorderSetCutValues(graph, tree, rootNode, nodeStack);
+}
+
+/**
+ * Performs a postorder traversal of the tree and assigns nodes a postorder
+ * number and the smallest postorder number in its subtrees.
+ *
+ * @param tree A spanning tree.
+ * @param node The current node.
+ * @param nodeStack Nodes on the current path.
+ * @param number The current postorder number.
+ * @returns The next postorder number.
+ */
+function postorderNumber(
   tree: Graph,
   node: NodeId,
-  stack: NodeId[],
+  nodeStack: NodeId[],
   number: number
 ) {
-  stack.push(node);
+  nodeStack.push(node);
 
   const neighbors = tree.neighbors(node) || [];
   let nextNumber = number;
 
   neighbors.forEach((neighbor) => {
-    if (!stack.includes(neighbor))
-      nextNumber = postorderNumber(tree, neighbor, stack, nextNumber);
+    if (!nodeStack.includes(neighbor))
+      nextNumber = postorderNumber(tree, neighbor, nodeStack, nextNumber);
   });
 
-  tree.setNode(node, {
-    number: nextNumber,
-    minSubtreeNumber: number,
-  });
+  tree.node(node).number = nextNumber;
+  tree.node(node).minSubtreeNumber = nextNumber;
 
-  stack.pop();
+  nodeStack.pop();
 
   return nextNumber + 1;
 }
 
-export function postorderSetCutValues(
+/**
+ * Assigns cut values to all tree edges in a postorder fashion. This is a more
+ * efficient way to set cut values than the naive approach.
+ *
+ * @param graph A graph object.
+ * @param tree A spanning tree.
+ * @param node The current node.
+ * @param nodeStack Nodes on the current path.
+ */
+function postorderSetCutValues(
   graph: Graph,
   tree: Graph,
   node: NodeId,
-  stack: NodeId[]
+  nodeStack: NodeId[]
 ) {
-  stack.push(node);
+  nodeStack.push(node);
 
-  const { number, minSubtreeNumber } = tree.node(node)!;
+  const { number, minSubtreeNumber } = tree.node(node);
   const isLeafNode = number === minSubtreeNumber;
   const treeEdges = tree.nodeEdges(node) || [];
   let parentEdge: Edge | undefined;
   let cutValue = 0;
 
   if (treeEdges.length === 0) {
-    stack.pop();
+    nodeStack.pop();
     return;
   }
 
   if (isLeafNode) {
     parentEdge = treeEdges[0];
-    const connectedNodeType = getConnectedNode(node, parentEdge).nodeType;
+    const parentIsTail = node === parentEdge.w;
     const predecessors = graph.predecessors(node) || [];
     const successors = graph.successors(node) || [];
 
-    if (connectedNodeType === "tail") {
+    if (parentIsTail) {
       cutValue = predecessors.length - successors.length;
     } else {
       cutValue = successors.length - predecessors.length;
@@ -545,8 +409,8 @@ export function postorderSetCutValues(
     const neighbors = tree.neighbors(node)!;
 
     neighbors.forEach((neighbor) => {
-      if (!stack.includes(neighbor))
-        postorderSetCutValues(graph, tree, neighbor, stack);
+      if (!nodeStack.includes(neighbor))
+        postorderSetCutValues(graph, tree, neighbor, nodeStack);
     });
 
     parentEdge = treeEdges.find(
@@ -554,14 +418,14 @@ export function postorderSetCutValues(
     );
 
     if (parentEdge === undefined) {
-      stack.pop();
+      nodeStack.pop();
       return;
     }
 
-    const parentNodeType = getConnectedNode(node, parentEdge).nodeType;
+    const parentNodeType = node === parentEdge.w ? "tail" : "head";
 
     graph.nodeEdges(node)!.forEach((edge) => {
-      const connectedNodeType = getConnectedNode(node, edge).nodeType;
+      const connectedNodeType = node === edge.w ? "tail" : "head";
       const edgeCutValue = tree.edge(edge)?.cutValue;
 
       if (edgeCutValue) {
@@ -574,47 +438,16 @@ export function postorderSetCutValues(
     });
   }
 
-  tree.setEdge(parentEdge, { cutValue });
+  tree.edge(parentEdge).cutValue = cutValue;
 
-  stack.pop();
+  nodeStack.pop();
 }
 
-type ConnectedNodeType = "tail" | "head";
-
-export function getConnectedNode(
-  node: NodeId,
-  edge: Edge
-): { node: NodeId; nodeType: ConnectedNodeType } {
-  const { v, w } = edge;
-
-  if (node === v) return { node: w, nodeType: "head" };
-  return { node: v, nodeType: "tail" };
-}
-
-export function getMinSlack(graph: Graph, tree: Graph, ranks: RankTable) {
-  let minSlackEdge: Edge | null = null;
-  let minSlack = Infinity;
-
-  for (const edge of graph.edges()) {
-    const { v, w } = edge;
-
-    if (tree.hasNode(v) === tree.hasNode(w)) continue;
-
-    const rankDistance = Math.abs(
-      ranks.getRankNumber(v)! - ranks.getRankNumber(w)!
-    );
-    const slack = rankDistance - 1;
-
-    if (slack < minSlack) {
-      minSlackEdge = edge;
-      minSlack = slack;
-    }
-  }
-
-  return { minSlackEdge, minSlack };
-}
-
-export class NegativeCutValueEdgeIterator {
+/**
+ * Provides an iterator for cyclically going through tree edges that have a
+ * negative cut value.
+ */
+class NegativeCutValueEdgeIterator {
   private tree: Graph;
   private index: number;
 
@@ -629,11 +462,7 @@ export class NegativeCutValueEdgeIterator {
     if (this.index === this.tree.edgeCount()) return false;
 
     const edge = this.tree.edges()[this.index];
-    if (!this.tree.edge(edge)) {
-      console.warn("Undefined cut value", this.tree);
-      return false;
-    }
-    const cutValue = this.tree.edge(edge)!.cutValue;
+    const cutValue = this.tree.edge(edge).cutValue;
 
     return cutValue < 0;
   }
@@ -652,49 +481,43 @@ export class NegativeCutValueEdgeIterator {
   }
 
   next() {
-    if (this.hasNext()) {
-      const edge = this.tree.edges()[this.index];
-      return edge;
-    }
-
-    return null;
+    if (!this.hasNext()) return null;
+    return this.tree.edges()[this.index];
   }
 }
 
-export function getNegativeCutValueEdge(tree: Graph) {
-  tree.edges().forEach((edge) => {
-    const cutValue = tree.edge(edge)!.cutValue;
-
-    if (cutValue < 0) return edge;
-  });
-
-  return undefined;
-}
-
-export function getNontreeMinSlackEdge(
+/**
+ * Searches for non-tree edges that can be swapped with the `cutEdge` and have
+ * the tree remain a spanning tree. The edge with the minimal slack is returned.
+ *
+ * @param graph A graph object.
+ * @param tree A spanning tree.
+ * @param ranks A rank table.
+ * @param cutEdge The edge to be cut.
+ * @returns A viable non-tree edge with minimal slack.
+ */
+function getNontreeMinSlackEdge(
   graph: Graph,
   tree: Graph,
   ranks: RankTable,
   cutEdge: Edge
 ) {
   const { v, w } = cutEdge;
-  const { number: vNumber, minSubtreeNumber: vMinSubtreeNumber } =
-    tree.node(v)!;
-  const { number: wNumber, minSubtreeNumber: wMinSubtreeNumber } =
-    tree.node(w)!;
-  const rootNodeInHead = vNumber < wNumber;
-  let checkNodeInTail: (node: NodeId) => boolean;
-  let minSlackEdge: Edge | null = null;
+  const { number: vNumber, minSubtreeNumber: vMinSubtreeNumber } = tree.node(v);
+  const { number: wNumber, minSubtreeNumber: wMinSubtreeNumber } = tree.node(w);
+  const rootNodeIsInHeadComponent = vNumber < wNumber;
+  let checkNodeInTailComponent: (node: NodeId) => boolean;
   let minSlack = Infinity;
+  let minSlackEdge: Edge | null = null;
 
-  if (rootNodeInHead) {
-    checkNodeInTail = (node) => {
-      const nodeNumber = tree.node(node)!.number;
+  if (rootNodeIsInHeadComponent) {
+    checkNodeInTailComponent = (node) => {
+      const nodeNumber = tree.node(node).number;
       return vMinSubtreeNumber <= nodeNumber && nodeNumber <= vNumber;
     };
   } else {
-    checkNodeInTail = (node) => {
-      const nodeNumber = tree.node(node)!.number;
+    checkNodeInTailComponent = (node) => {
+      const nodeNumber = tree.node(node).number;
       return wMinSubtreeNumber <= nodeNumber && nodeNumber <= wNumber;
     };
   }
@@ -703,17 +526,311 @@ export function getNontreeMinSlackEdge(
     if (tree.hasEdge(edge)) continue;
 
     const { v: otherV, w: otherW } = edge;
-    const edgeSlack = Math.abs(
-      ranks.getRankNumber(otherV)! - ranks.getRankNumber(otherW)!
-    );
-    const vInHeadComponent = !checkNodeInTail(otherV);
-    const wInTailComponent = checkNodeInTail(otherW);
+    const edgeSlack = Math.abs(ranks.getRank(otherV)! - ranks.getRank(otherW)!);
+    const vIsInHeadComponent = !checkNodeInTailComponent(otherV);
+    const wIsInTailComponent = checkNodeInTailComponent(otherW);
 
-    if (vInHeadComponent && wInTailComponent && edgeSlack < minSlack) {
-      minSlackEdge = edge;
+    if (vIsInHeadComponent && wIsInTailComponent && edgeSlack < minSlack) {
       minSlack = edgeSlack;
+      minSlackEdge = edge;
     }
   }
 
   return minSlackEdge;
+}
+
+/**
+ * Optimally updates ranks, numberings and cut values with respect to the
+ * addition of the `newTreeEdge`.
+ *
+ * @param graph A graph object.
+ * @param tree A spanning tree.
+ * @param ranks A rank table.
+ * @param newTreeEdge A newly added tree edge.
+ * @returns An updated rank table.
+ */
+function updateTreeValues(
+  graph: Graph,
+  tree: Graph,
+  ranks: RankTable,
+  newTreeEdge: Edge
+) {
+  const rootNode = graph.nodes()[0];
+  const { v, w } = newTreeEdge;
+  const commonAncestor = getClosestCommonAncestor(tree, v, w)!;
+
+  if (commonAncestor === rootNode) {
+    setCutValues(graph, tree);
+    return setRanks(tree);
+  }
+
+  updateRanks(tree, ranks, commonAncestor);
+
+  const ancestorLabel = tree.node(commonAncestor);
+  const nodeStack = tree.neighbors(commonAncestor)!.filter((neighbor) => {
+    return ancestorLabel.number < tree.node(neighbor).number;
+  });
+
+  postorderNumber(
+    tree,
+    commonAncestor,
+    nodeStack,
+    ancestorLabel.minSubtreeNumber
+  );
+  postorderSetCutValues(graph, tree, commonAncestor, nodeStack);
+
+  return ranks;
+}
+
+/**
+ * Finds the closest common ancestor of two nodes in a tree. Returns `undefined`
+ * if an ancestor somehow cannot be found.
+ *
+ * @param tree A tree graph object.
+ * @param node0 A tree node.
+ * @param node1 Another tree node.
+ * @returns The closest common ancestor of `node0` and `node1`.
+ */
+function getClosestCommonAncestor(tree: Graph, node0: NodeId, node1: NodeId) {
+  const node0Number = tree.node(node0).number;
+  const node1Number = tree.node(node1).number;
+  const lowestNumber = Math.min(node0Number, node1Number);
+  const highestNumber = Math.max(node0Number, node1Number);
+  const nodes = tree.neighbors(node0)!;
+
+  for (const node of nodes) {
+    const { number, minSubtreeNumber } = tree.node(node);
+
+    if (minSubtreeNumber <= highestNumber && lowestNumber <= number)
+      return node;
+
+    tree.neighbors(node)!.forEach((neighbor) => {
+      if (!nodes.includes(neighbor)) nodes.push(neighbor);
+    });
+  }
+}
+
+/**
+ * Updates the ranks of all nodes in the subtree rooted in `subtreeRoot`.
+ *
+ * @param tree A tree graph object.
+ * @param ranks A rank table.
+ * @param subtreeRoot The node whose subtree must be updated.
+ */
+function updateRanks(tree: Graph, ranks: RankTable, subtreeRoot: NodeId) {
+  const subtreeRootNumber = tree.node(subtreeRoot).number;
+  const subtreeNodes: NodeId[] = tree
+    .neighbors(subtreeRoot)!
+    .filter((neighbor) => tree.node(neighbor).number < subtreeRootNumber);
+
+  for (const node of subtreeNodes) {
+    const nodeNeighbors = tree.neighbors(node)!;
+    const nodeNumber = tree.node(node).number;
+
+    nodeNeighbors.forEach((neighbor) => {
+      const neighborNumber = tree.node(neighbor).number;
+      if (neighborNumber < nodeNumber) subtreeNodes.push(neighbor);
+    });
+  }
+
+  const newRanks = setRanks(tree, subtreeNodes);
+
+  subtreeNodes.forEach((node) => {
+    ranks.set(node, newRanks.getRank(node)!);
+  });
+}
+
+/**
+ * Adjusts all ranks so that the smallest rank is 0.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ */
+function normalizeRanks(graph: Graph, ranks: RankTable) {
+  const smallestRank = ranks.getMinRankIndex();
+
+  if (smallestRank !== 0)
+    graph.nodes().forEach((node) => {
+      const rank = ranks.getRank(node)!;
+      ranks.set(node, rank - smallestRank);
+    });
+}
+
+/**
+ * Balances the layering by moving nodes with equal in and out degrees and
+ * multiple viable ranks to the one with the least number of nodes.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ */
+function balanceLayering(graph: Graph, ranks: RankTable) {
+  for (const node of graph.nodes()) {
+    const inDegree = (graph.inEdges(node) || []).length;
+    const outDegree = (graph.outEdges(node) || []).length;
+
+    if (inDegree !== outDegree) continue;
+
+    const parentRanks = (graph.predecessors(node) || []).map(
+      (parent) => ranks.getRank(parent)!
+    );
+    const childRanks = (graph.successors(node) || []).map(
+      (child) => ranks.getRank(child)!
+    );
+    const maxParentRank = Math.max(...parentRanks);
+    const minChildRank = Math.min(...childRanks);
+    const nodeCanBeMoved = minChildRank - maxParentRank > 2;
+
+    if (nodeCanBeMoved) {
+      const firstViableRank = parentRanks.length > 0 ? maxParentRank + 1 : 0;
+      const lastViableRank =
+        childRanks.length > 0 ? minChildRank - 1 : ranks.getMaxRankIndex();
+      let minRank = ranks.getRank(node)!;
+      let minRankSize = ranks.getNodes(minRank)!.size;
+
+      for (
+        let rankIndex = firstViableRank;
+        rankIndex <= lastViableRank;
+        rankIndex++
+      ) {
+        const rankSize = ranks.getNodes(rankIndex)!.size;
+
+        if (rankSize < minRankSize) {
+          minRank = rankIndex;
+          minRankSize = rankSize;
+        }
+      }
+
+      ranks.set(node, minRank);
+    }
+  }
+}
+
+/**
+ * Splits conjunct nodes by restoring the subnodes and their edges.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @param conjunctNodes A list of conjunct nodes.
+ */
+function splitConjunctNodes(
+  graph: Graph,
+  ranks: RankTable,
+  conjunctNodes: NodeId[]
+) {
+  conjunctNodes.forEach((node) => {
+    const { subnodeData, originalEdges } = graph.node(node);
+
+    Object.keys(subnodeData).forEach((subnode) => {
+      graph.setNode(subnode, subnodeData[subnode]);
+      graph.setParent(subnode, node);
+      ranks.set(subnode, ranks.getRank(node)!);
+    });
+
+    originalEdges.forEach((edge: EdgeAndLabel) => {
+      const { v, w, label, name } = edge;
+      graph.setEdge(v, w, label, name);
+    });
+
+    graph.nodeEdges(node)!.forEach((edge) => {
+      graph.removeEdge(edge);
+    });
+  });
+}
+
+/**
+ * Splits relevance structures by restoring the subnodes and their edges. Also
+ * adjusts ranks of any successors.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @param metaRelevanceNodes A list of meta relevance nodes.
+ */
+function splitRelevanceStructures(
+  graph: Graph,
+  ranks: RankTable,
+  metaRelevanceNodes: NodeId[]
+) {
+  if (!metaRelevanceNodes.length) return;
+
+  const relevanceStructureNodes: NodeId[] = [];
+  let sink = "";
+  let relevanceSource = "";
+  let relevanceSink = "";
+
+  metaRelevanceNodes.forEach((node) => {
+    const { subnodeData, originalEdges } = graph.node(node);
+
+    Object.keys(subnodeData).forEach((subnode) => {
+      graph.setNode(subnode, subnodeData[subnode]);
+      ranks.set(subnode, ranks.getRank(node)!);
+      relevanceStructureNodes.push(subnode);
+
+      if (subnodeData[subnode].isRelevanceSource) {
+        relevanceSource = subnode;
+      } else if (subnodeData[subnode].isRelevanceSink) {
+        const incidentNodes = subnode.split(" -> ");
+        sink = incidentNodes[1];
+        relevanceSink = subnode;
+      }
+    });
+
+    originalEdges.forEach((edge: EdgeAndLabel) => {
+      const { v, w, label, name } = edge;
+      graph.setEdge(v, w, label, name);
+    });
+
+    graph.removeNode(node);
+  });
+
+  propegateRankIncrement(graph, ranks, sink, 1);
+  ranks.set(relevanceSource, ranks.getRank(relevanceSource)! - 0.5);
+  propegateRankIncrement(graph, ranks, relevanceSink, 1);
+  ranks.set(relevanceSink, ranks.getRank(relevanceSink)! + 0.5);
+}
+
+/**
+ * Adjusts the rank of `node` and all its successors by `delta`.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @param node A node.
+ * @param delta The amount to increment rankings.
+ */
+function propegateRankIncrement(
+  graph: Graph,
+  ranks: RankTable,
+  node: NodeId,
+  delta: number
+) {
+  ranks.set(node, ranks.getRank(node)! + delta);
+  const successors = graph.successors(node) || [];
+
+  successors.forEach((successor) => {
+    propegateRankIncrement(graph, ranks, successor, delta);
+  });
+}
+
+export function getNegativeCutValueEdge(tree: Graph) {
+  tree.edges().forEach((edge) => {
+    const cutValue = tree.edge(edge).cutValue;
+
+    if (cutValue < 0) return edge;
+  });
+
+  return undefined;
+}
+
+/**
+ * Assigns y-coordinates to all nodes based on their ranks.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ */
+function setYCoordinates(graph: Graph, ranks: RankTable) {
+  graph.nodes().forEach((node) => {
+    const rank = ranks.getRank(node)!;
+    const y = rank * NODE_Y_SPACING;
+
+    graph.node(node).y = y;
+  });
 }

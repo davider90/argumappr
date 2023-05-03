@@ -8,15 +8,15 @@ import { buildSimpleGraph, EdgeAndLabel, NodeId } from "./utils";
  * the input graph in place.
  *
  * @remarks
- *
  * This algorithm is heavily based on Eades et al.'s greedy cycle removal. It
  * uses a greedy heuristic to identify a *small enough* set of edges whose
  * reversal leaves the graph acyclic. The edges of said set are inverted, and
  * loops are deleted. The original versions of modified edges are stored away
- * and returned so that they may be recovered at a later stage. The run time is
- * at least as good as O(|V| + |E|).
+ * and returned so that they may be restored at a later stage. The run time is
+ * at least as good as *O(|V| + |E|)*.
  *
- * @see {@link https://www.sciencedirect.com/science/article/abs/pii/002001909390079O}
+ * @see
+ * [A fast and effective heuristic for the feedback arc set problem](https://www.sciencedirect.com/science/article/abs/pii/002001909390079O)
  *
  * @param graph A graph object. Must be directed.
  * @returns The original version of all modified edges.
