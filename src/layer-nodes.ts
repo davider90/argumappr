@@ -2,11 +2,6 @@ import { Edge } from "graphlib";
 import Graph from "./graph";
 import { EdgeAndLabel, NODE_Y_SPACING, NodeId, RankTable } from "./utils";
 
-const MAX_LOOPS = 100;
-
-// TODO: Instead of incrementing all successors of relevance nodes, implement
-//       minimum edge length constraints.
-
 /**
  * Assigns all nodes of the input graph to optimal ranks, gives them
  * *y*-coordinates based on their layer and returns the layers.
@@ -25,7 +20,7 @@ const MAX_LOOPS = 100;
  * @returns A rank table.
  */
 export default function layerNodes(graph: Graph) {
-  const conjunctNodes = mergeConjunctNodes(graph);
+  mergeConjunctNodes(graph);
   const metaRelevanceNodes = mergeRelevanceStructures(graph);
   const treeAndRanks = getFeasibleTree(graph);
   const { tree } = treeAndRanks;
@@ -33,11 +28,11 @@ export default function layerNodes(graph: Graph) {
   const edgeIterator = new NegativeCutValueEdgeIterator(tree);
   let loopCount = 0;
 
-  while (edgeIterator.hasNext() && loopCount < MAX_LOOPS) {
+  while (edgeIterator.hasNext() && loopCount < graph.graph().maxrankingloops) {
     const treeEdge = edgeIterator.next()!;
     const nontreeEdge = getNontreeMinSlackEdge(graph, tree, ranks, treeEdge);
 
-    if (!nontreeEdge) break;
+    if (!nontreeEdge) continue;
 
     tree.removeEdge(treeEdge);
     tree.setEdge(nontreeEdge, graph.edge(nontreeEdge));
@@ -48,7 +43,7 @@ export default function layerNodes(graph: Graph) {
 
   normalizeRanks(graph, ranks);
   balanceLayering(graph, ranks);
-  splitConjunctNodes(graph, ranks, conjunctNodes);
+  splitConjunctNodes(graph, ranks);
   splitRelevanceStructures(graph, ranks, metaRelevanceNodes);
   setYCoordinates(graph, ranks);
 
@@ -58,17 +53,12 @@ export default function layerNodes(graph: Graph) {
 /**
  * Merges the subnodes of conjunct nodes into a single node with all inedges
  * and outedges of the subnodes. Stores away any labels for later restoration.
- * Returns the conjunct nodes.
  *
  * @param graph A graph object.
  * @returns The conjunct nodes.
  */
 function mergeConjunctNodes(graph: Graph) {
-  const conjunctNodes = graph
-    .nodes()
-    .filter((node) => graph.node(node)?.isConjunctNode);
-
-  conjunctNodes.forEach((node) => {
+  graph.conjunctNodes().forEach((node) => {
     const originalEdges: EdgeAndLabel[] = [];
     const subnodeData: { [node: NodeId]: any } = {};
     const subnodes = graph.children(node);
@@ -80,6 +70,7 @@ function mergeConjunctNodes(graph: Graph) {
       inEdges.forEach((inEdge) => {
         const { v } = inEdge;
         const edgeLabel = graph.edge(inEdge);
+
         graph.setEdge(v, node, edgeLabel);
         originalEdges.push({ ...inEdge, label: edgeLabel });
       });
@@ -87,6 +78,7 @@ function mergeConjunctNodes(graph: Graph) {
       outEdges.forEach((outEdge) => {
         const { w } = outEdge;
         const edgeLabel = graph.edge(outEdge);
+
         graph.setEdge(node, w, edgeLabel);
         originalEdges.push({ ...outEdge, label: edgeLabel });
       });
@@ -98,8 +90,6 @@ function mergeConjunctNodes(graph: Graph) {
     graph.node(node).subnodeData = subnodeData;
     graph.node(node).originalEdges = originalEdges;
   });
-
-  return conjunctNodes;
 }
 
 /**
@@ -111,18 +101,15 @@ function mergeConjunctNodes(graph: Graph) {
  * @returns The meta relevance nodes.
  */
 function mergeRelevanceStructures(graph: Graph) {
-  const relevanceSinks = graph
-    .nodes()
-    .filter((node) => graph.node(node)?.isRelevanceSink);
   const metaRelevanceNodes: NodeId[] = [];
 
-  relevanceSinks.forEach((relevanceSink) => {
+  graph.relevanceSinks().forEach((sink) => {
     const originalEdges: EdgeAndLabel[] = [];
     const subnodeData: { [node: NodeId]: any } = {};
-    const incidentNodes = relevanceSink.split(" -> ");
-    const relevanceSource = graph.predecessors(relevanceSink)![0];
-    const nodes = [...incidentNodes, relevanceSource];
-    const metaRelevanceNode = `meta ${relevanceSink}`;
+    const incidentNodes = sink.split(" -> ");
+    const relevanceSource = graph.predecessors(sink)![0];
+    const nodes = [sink, ...incidentNodes, relevanceSource];
+    const metaRelevanceNode = `meta ${sink}`;
 
     graph.setNode(metaRelevanceNode, {});
 
@@ -133,16 +120,23 @@ function mergeRelevanceStructures(graph: Graph) {
       for (const inEdge of inEdges) {
         const { v } = inEdge;
         const edgeLabel = graph.edge(inEdge);
+
         originalEdges.push({ ...inEdge, label: edgeLabel });
         if (nodes.includes(v)) continue;
         graph.setEdge(v, metaRelevanceNode, edgeLabel);
       }
 
       for (const outEdge of outEdges) {
-        const { w } = outEdge;
-        const edgeLabel = graph.edge(outEdge);
+        const { v, w } = outEdge;
+        let edgeLabel = graph.edge(outEdge);
+
         originalEdges.push({ ...outEdge, label: edgeLabel });
+
         if (nodes.includes(w)) continue;
+
+        if (incidentNodes[1] === v || relevanceSource === v)
+          edgeLabel = { ...edgeLabel, minlen: edgeLabel.minlen + 1 };
+
         graph.setEdge(metaRelevanceNode, w, edgeLabel);
       }
 
@@ -175,14 +169,14 @@ function getFeasibleTree(graph: Graph) {
   while (tree.nodeCount() < graph.nodeCount()) {
     const { minSlack, minSlackEdge } = getMinSlack(graph, tree, ranks);
     const { v, w } = minSlackEdge;
-    let delta: number;
+    let rankDelta: number;
     let newNode: NodeId;
 
     if (tree.hasNode(v)) {
-      delta = minSlack;
+      rankDelta = minSlack;
       newNode = w;
     } else {
-      delta = -minSlack;
+      rankDelta = -minSlack;
       newNode = v;
     }
 
@@ -191,7 +185,7 @@ function getFeasibleTree(graph: Graph) {
 
     for (const node of graph.nodes()) {
       if (node === newNode) continue;
-      const newRank = ranks.getRank(node)! + delta;
+      const newRank = ranks.getRank(node)! + rankDelta;
       ranks.set(node, newRank);
     }
   }
@@ -223,23 +217,27 @@ function setRanks(graph: Graph, nodeList?: NodeId[]) {
         nodes.splice(nodeIndex, 1);
         nodeIndex--;
       } else {
-        const parents = inEdges.map((e) => e.v);
         let maxParentRank = -Infinity;
+        let edgeLength = -Infinity;
 
-        for (let parentIndex = 0; parentIndex < parents.length; parentIndex++) {
-          const parent = parents[parentIndex];
+        for (const edge of inEdges) {
+          const parent = edge.v;
           const parentRank = ranks.getRank(parent);
+          const edgeMinLength: number = graph.edge(edge).minlen;
 
           if (parentRank === undefined) {
             maxParentRank = -Infinity;
             break;
           }
 
-          if (parentRank > maxParentRank) maxParentRank = parentRank;
+          if (maxParentRank + edgeLength < parentRank + edgeMinLength) {
+            maxParentRank = parentRank;
+            edgeLength = edgeMinLength;
+          }
         }
 
         if (maxParentRank !== -Infinity) {
-          ranks.set(node, maxParentRank + 1);
+          ranks.set(node, maxParentRank + edgeLength);
           nodes.splice(nodeIndex, 1);
           nodeIndex--;
         }
@@ -271,9 +269,11 @@ function getTightTree(graph: Graph, ranks: RankTable) {
 
     if (tightTree.hasNode(v) && tightTree.hasNode(w)) continue;
 
-    const rankDistance = Math.abs(ranks.getRank(v)! - ranks.getRank(w)!);
+    const edgeMinLength: number = graph.edge(edge).minlen;
+    const rankDistance = ranks.getRank(w)! - ranks.getRank(v)!;
+    const edgeIsTight = edgeMinLength === rankDistance;
 
-    if (rankDistance === 1) {
+    if (edgeIsTight) {
       const newNode = tightTree.hasNode(v) ? w : v;
       const newEdges = graph.nodeEdges(newNode)!;
 
@@ -301,11 +301,13 @@ function getMinSlack(graph: Graph, tree: Graph, ranks: RankTable) {
 
   for (const edge of graph.edges()) {
     const { v, w } = edge;
+    const hasReachableNewNode = tree.hasNode(v) !== tree.hasNode(w);
 
-    if (tree.hasNode(v) === tree.hasNode(w)) continue;
+    if (!hasReachableNewNode) continue;
 
-    const rankDistance = Math.abs(ranks.getRank(v)! - ranks.getRank(w)!);
-    const slack = rankDistance - 1;
+    const edgeMinLength: number = graph.edge(edge).minlen;
+    const rankDistance = ranks.getRank(w)! - ranks.getRank(v)!;
+    const slack = rankDistance - edgeMinLength;
 
     if (slack < minSlack) {
       minSlack = slack;
@@ -710,14 +712,9 @@ function balanceLayering(graph: Graph, ranks: RankTable) {
  *
  * @param graph A graph object.
  * @param ranks A rank table.
- * @param conjunctNodes A list of conjunct nodes.
  */
-function splitConjunctNodes(
-  graph: Graph,
-  ranks: RankTable,
-  conjunctNodes: NodeId[]
-) {
-  conjunctNodes.forEach((node) => {
+function splitConjunctNodes(graph: Graph, ranks: RankTable) {
+  graph.conjunctNodes().forEach((node) => {
     const { subnodeData, originalEdges } = graph.node(node);
 
     Object.keys(subnodeData).forEach((subnode) => {
@@ -731,9 +728,12 @@ function splitConjunctNodes(
       graph.setEdge(v, w, label, name);
     });
 
-    graph.nodeEdges(node)!.forEach((edge) => {
+    const conjunctTarget = node.substring(3);
+
+    for (const edge of graph.nodeEdges(node)!) {
+      if (edge.w === conjunctTarget) continue;
       graph.removeEdge(edge);
-    });
+    }
   });
 }
 
@@ -753,7 +753,6 @@ function splitRelevanceStructures(
   if (!metaRelevanceNodes.length) return;
 
   const relevanceStructureNodes: NodeId[] = [];
-  let sink = "";
   let relevanceSource = "";
   let relevanceSink = "";
 
@@ -768,8 +767,6 @@ function splitRelevanceStructures(
       if (subnodeData[subnode].isRelevanceSource) {
         relevanceSource = subnode;
       } else if (subnodeData[subnode].isRelevanceSink) {
-        const incidentNodes = subnode.split(" -> ");
-        sink = incidentNodes[1];
         relevanceSink = subnode;
       }
     });
@@ -780,11 +777,10 @@ function splitRelevanceStructures(
     });
 
     graph.removeNode(node);
+    ranks.delete(node);
   });
 
-  propegateRankIncrement(graph, ranks, sink, 1);
-  ranks.set(relevanceSource, ranks.getRank(relevanceSource)! - 0.5);
-  propegateRankIncrement(graph, ranks, relevanceSink, 1);
+  ranks.set(relevanceSource, ranks.getRank(relevanceSource)! + 0.5);
   ranks.set(relevanceSink, ranks.getRank(relevanceSink)! + 0.5);
 }
 
