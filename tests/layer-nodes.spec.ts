@@ -3,7 +3,7 @@ import { assert } from "chai";
 
 import Graph from "../src/graph";
 import layerNodes from "../src/layer-nodes";
-import { RankTable } from "../src/utils";
+import { RankTable, buildLayoutGraph } from "../src/utils";
 
 describe("Node Layer Assignment", () => {
   it("should be a function", () => {
@@ -30,11 +30,75 @@ describe("Node Layer Assignment", () => {
     graph.setEdge("a", "b");
     graph.setEdge("b", "c");
 
-    const ranks = layerNodes(graph);
+    const layoutGraph = buildLayoutGraph(graph);
+    const ranks = layerNodes(layoutGraph);
 
     assert.strictEqual(ranks.getRank("a"), 0);
     assert.strictEqual(ranks.getRank("b"), 1);
     assert.strictEqual(ranks.getRank("c"), 2);
+  });
+
+  it("should handle conjunct nodes", () => {
+    const graph = new Graph();
+
+    graph.setDefaultNodeLabel(() => ({}));
+    graph.setDefaultEdgeLabel(() => ({}));
+
+    graph.setNode("a");
+    graph.setNode("b");
+    graph.setNode("c");
+    graph.setEdge("a", "c");
+    graph.setConjunctNode("b", { v: "a", w: "c" });
+
+    const layoutGraph = buildLayoutGraph(graph);
+    const ranks = layerNodes(layoutGraph);
+
+    assert.strictEqual(ranks.getRank("a"), 0);
+    assert.strictEqual(ranks.getRank("b"), 0);
+    assert.strictEqual(ranks.getRank("c"), 1);
+  });
+
+  it("should handle relevance edges", () => {
+    const graph = new Graph();
+
+    graph.setDefaultNodeLabel(() => ({}));
+    graph.setDefaultEdgeLabel(() => ({}));
+
+    graph.setNode("a");
+    graph.setNode("b");
+    graph.setNode("c");
+    graph.setEdge("a", "c");
+    graph.setRelevanceEdge("b", { v: "a", w: "c" });
+
+    const layoutGraph = buildLayoutGraph(graph);
+    const ranks = layerNodes(layoutGraph);
+
+    assert.strictEqual(ranks.getRank("a"), 0);
+    assert.strictEqual(ranks.getRank("b"), 0.5);
+    assert.strictEqual(ranks.getRank("c"), 1);
+  });
+
+  it("should handle relevance edges with conjunct nodes", () => {
+    const graph = new Graph();
+
+    graph.setDefaultNodeLabel(() => ({}));
+    graph.setDefaultEdgeLabel(() => ({}));
+
+    graph.setNode("a");
+    graph.setNode("b");
+    graph.setNode("c");
+    graph.setNode("d");
+    graph.setEdge("a", "d");
+    graph.setConjunctNode("b", { v: "a", w: "d" });
+    graph.setRelevanceEdge("c", { v: "-> d", w: "d" });
+
+    const layoutGraph = buildLayoutGraph(graph);
+    const ranks = layerNodes(layoutGraph);
+
+    assert.strictEqual(ranks.getRank("a"), 0);
+    assert.strictEqual(ranks.getRank("b"), 0);
+    assert.strictEqual(ranks.getRank("c"), 0.5);
+    assert.strictEqual(ranks.getRank("d"), 1);
   });
 
   it("test", () => {
@@ -82,9 +146,10 @@ describe("Node Layer Assignment", () => {
     g.setEdge("i", "c");
     g.setEdge("l", "g");
 
-    console.profile("layerNodes");
-    const ranks = layerNodes(g);
-    console.profileEnd("layerNodes");
+    const layoutGraph = buildLayoutGraph(g);
+    // console.profile("layerNodes");
+    const ranks = layerNodes(layoutGraph);
+    // console.profileEnd("layerNodes");
   });
 
   it("test2", () => {
@@ -106,7 +171,8 @@ describe("Node Layer Assignment", () => {
     g.setNode("e");
     g.setEdge("e", "d");
 
-    const ranking = layerNodes(g);
+    const layoutGraph = buildLayoutGraph(g);
+    const ranking = layerNodes(layoutGraph);
     console.log(ranking);
   });
 });
