@@ -53,7 +53,10 @@ export default function layOutGraph(graph: Graph) {
  * @param graph A graph object.
  * @param originalEdges Original edges of the graph.
  */
-function restoreEdges(graph: Graph, originalEdges: any) {
+function restoreEdges(
+  graph: Graph,
+  originalEdges: ReturnType<typeof removeCycles>
+) {
   originalEdges.deletedLoops.forEach((edge) => {
     const { v, w, label, name } = edge;
     graph.setEdge(v, w, label, name);
