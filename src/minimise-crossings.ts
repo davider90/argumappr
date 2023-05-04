@@ -127,7 +127,7 @@ function handleConjunctNodes(
 ) {
   const conjunctNodes = graph
     .nodes()
-    .filter((node) => graph.node(node)?.isConjunctNode);
+    .filter((node) => graph.node(node).isConjunctNode);
 
   conjunctNodes.forEach((node) => {
     const startDummyNodeId = `start-${node}`;
@@ -162,7 +162,7 @@ function handleRelevanceStructures(
 ) {
   const relevanceSinks = graph
     .nodes()
-    .filter((node) => graph.node(node)?.isRelevanceSink);
+    .filter((node) => graph.node(node).isRelevanceSink);
 
   relevanceSinks.forEach((sink) => {
     const [simpleSource, simpleSink] = sink.split(" -> ");
