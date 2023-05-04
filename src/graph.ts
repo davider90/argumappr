@@ -6,9 +6,6 @@ import { NodeId } from "./utils";
  * relevance edges and conjunct nodes.
  */
 export default class Graph extends graphlibGraph {
-  private _conjunctNodes = new Set<NodeId>();
-  private _relevanceSinks = new Set<NodeId>();
-
   /**
    * @param options Booleans for setting the graph as directed (default true),
    * multigraph (default false) and compound (default true).
@@ -20,14 +17,6 @@ export default class Graph extends graphlibGraph {
   // Overrides erroneous return type.
   override graph(): any {
     return super.graph();
-  }
-
-  conjunctNodes() {
-    return [...this._conjunctNodes.values()];
-  }
-
-  relevanceSinks() {
-    return [...this._relevanceSinks.values()];
   }
 
   /**
@@ -45,7 +34,7 @@ export default class Graph extends graphlibGraph {
       vParentNode = `-> ${edge.w}`;
 
       this.setNode(vParentNode, { isConjunctNode: true });
-      this._conjunctNodes.add(vParentNode);
+      this.setParent(edge.v, vParentNode);
 
       const edgeLabel = this.edge(edge) || {};
 
@@ -84,7 +73,6 @@ export default class Graph extends graphlibGraph {
     if (sourceNodeLabel) this.node(sourceNode).isRelevanceSource = true;
     else this.setNode(sourceNode, { isRelevanceNode: true });
     this.setNode(dummyNodeId, { isRelevanceSink: true });
-    this._relevanceSinks.add(dummyNodeId);
 
     const edgeLabel =
       label || (this as any)._defaultEdgeLabelFn(sourceNode, dummyNodeId, name);
@@ -114,16 +102,14 @@ export default class Graph extends graphlibGraph {
       _name = edge.name;
     }
 
-    if (this._conjunctNodes.has(_v)) {
+    if (this.node(_v)?.isConjunctNode) {
       this.removeNode(_v);
-      this._conjunctNodes.delete(_v);
-    } else if (this._relevanceSinks.has(_w)) {
+    } else if (this.node(_w)?.isRelevanceSink) {
       this.removeNode(_w);
-      this._relevanceSinks.delete(_w);
       this.node(_v).isRelevanceSource = false;
-    } else {
-      super.removeEdge(_v, _w, _name);
     }
+
+    super.removeEdge(_v, _w, _name);
 
     return this;
   }

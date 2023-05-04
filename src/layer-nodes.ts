@@ -20,7 +20,7 @@ import { EdgeAndLabel, NODE_Y_SPACING, NodeId, RankTable } from "./utils";
  * @returns A rank table.
  */
 export default function layerNodes(graph: Graph) {
-  mergeConjunctNodes(graph);
+  const conjunctNodes = mergeConjunctNodes(graph);
   const metaRelevanceNodes = mergeRelevanceStructures(graph);
   const treeAndRanks = getFeasibleTree(graph);
   const { tree } = treeAndRanks;
@@ -29,6 +29,8 @@ export default function layerNodes(graph: Graph) {
   let loopCount = 0;
 
   while (edgeIterator.hasNext() && loopCount < graph.graph().maxrankingloops) {
+    loopCount++;
+
     const treeEdge = edgeIterator.next()!;
     const nontreeEdge = getNontreeMinSlackEdge(graph, tree, ranks, treeEdge);
 
@@ -37,14 +39,12 @@ export default function layerNodes(graph: Graph) {
     tree.removeEdge(treeEdge);
     tree.setEdge(nontreeEdge, graph.edge(nontreeEdge));
     ranks = updateTreeValues(graph, tree, ranks, nontreeEdge);
-
-    loopCount++;
   }
 
   normalizeRanks(graph, ranks);
   balanceLayering(graph, ranks);
-  splitConjunctNodes(graph, ranks);
   splitRelevanceStructures(graph, ranks, metaRelevanceNodes);
+  splitConjunctNodes(graph, ranks, conjunctNodes);
   setYCoordinates(graph, ranks);
 
   return ranks;
@@ -58,7 +58,11 @@ export default function layerNodes(graph: Graph) {
  * @returns The conjunct nodes.
  */
 function mergeConjunctNodes(graph: Graph) {
-  graph.conjunctNodes().forEach((node) => {
+  const conjunctNodes = graph
+    .nodes()
+    .filter((node) => graph.node(node).isConjunctNode);
+
+  conjunctNodes.forEach((node) => {
     const originalEdges: EdgeAndLabel[] = [];
     const subnodeData: { [node: NodeId]: any } = {};
     const subnodes = graph.children(node);
@@ -90,6 +94,8 @@ function mergeConjunctNodes(graph: Graph) {
     graph.node(node).subnodeData = subnodeData;
     graph.node(node).originalEdges = originalEdges;
   });
+
+  return conjunctNodes;
 }
 
 /**
@@ -102,8 +108,11 @@ function mergeConjunctNodes(graph: Graph) {
  */
 function mergeRelevanceStructures(graph: Graph) {
   const metaRelevanceNodes: NodeId[] = [];
+  const relevanceSinks = graph
+    .nodes()
+    .filter((node) => graph.node(node).isRelevanceSink);
 
-  graph.relevanceSinks().forEach((sink) => {
+  relevanceSinks.forEach((sink) => {
     const originalEdges: EdgeAndLabel[] = [];
     const subnodeData: { [node: NodeId]: any } = {};
     const incidentNodes = sink.split(" -> ");
@@ -452,6 +461,7 @@ function postorderSetCutValues(
 class NegativeCutValueEdgeIterator {
   private tree: Graph;
   private index: number;
+  private lastEdge: Edge | undefined;
 
   constructor(tree: Graph) {
     this.tree = tree;
@@ -460,21 +470,32 @@ class NegativeCutValueEdgeIterator {
     this.next = this.next.bind(this);
   }
 
-  private checkCutValue() {
+  /**
+   * Checks if the current edge has a negative cut value and if it has already
+   * been returned (implying that no non-tree edge was found to replace it).
+   *
+   * @returns Whether the edge at the current index can be returned.
+   */
+  private checkEdge() {
     if (this.index === this.tree.edgeCount()) return false;
 
     const edge = this.tree.edges()[this.index];
-    const cutValue = this.tree.edge(edge).cutValue;
 
-    return cutValue < 0;
+    if (this.lastEdge === edge) return false;
+    return this.tree.edge(edge).cutValue < 0;
   }
 
+  /**
+   * Cyclically searches for a tree edge with a negative cut value.
+   *
+   * @returns Whether there is a tree edge that can be returned.
+   */
   hasNext() {
     if (this.tree.edgeCount() === 0) return false;
 
     const startIndex = this.index;
 
-    while (!this.checkCutValue()) {
+    while (!this.checkEdge()) {
       this.index = (this.index + 1) % this.tree.edgeCount();
       if (this.index === startIndex) return false;
     }
@@ -482,8 +503,18 @@ class NegativeCutValueEdgeIterator {
     return true;
   }
 
+  /**
+   * Gets the next tree edge with a negative cut value. If `hasNext` returns
+   * `false`, this method returns `null`.
+   *
+   * @returns The next tree edge with a negative cut value.
+   */
   next() {
     if (!this.hasNext()) return null;
+
+    const edge = this.tree.edges()[this.index];
+    this.lastEdge = edge;
+
     return this.tree.edges()[this.index];
   }
 }
@@ -713,8 +744,12 @@ function balanceLayering(graph: Graph, ranks: RankTable) {
  * @param graph A graph object.
  * @param ranks A rank table.
  */
-function splitConjunctNodes(graph: Graph, ranks: RankTable) {
-  graph.conjunctNodes().forEach((node) => {
+function splitConjunctNodes(
+  graph: Graph,
+  ranks: RankTable,
+  conjunctNodes: NodeId[]
+) {
+  conjunctNodes.forEach((node) => {
     const { subnodeData, originalEdges } = graph.node(node);
 
     Object.keys(subnodeData).forEach((subnode) => {
@@ -753,8 +788,9 @@ function splitRelevanceStructures(
   if (!metaRelevanceNodes.length) return;
 
   const relevanceStructureNodes: NodeId[] = [];
-  let relevanceSource = "";
+  let sink = "";
   let relevanceSink = "";
+  let relevanceSource = "";
 
   metaRelevanceNodes.forEach((node) => {
     const { subnodeData, originalEdges } = graph.node(node);
@@ -764,15 +800,15 @@ function splitRelevanceStructures(
       ranks.set(subnode, ranks.getRank(node)!);
       relevanceStructureNodes.push(subnode);
 
-      if (subnodeData[subnode].isRelevanceSource) {
-        relevanceSource = subnode;
-      } else if (subnodeData[subnode].isRelevanceSink) {
+      if (subnodeData[subnode].isRelevanceSink) {
+        sink = subnode.split(" -> ")[1];
         relevanceSink = subnode;
       }
     });
 
     originalEdges.forEach((edge: EdgeAndLabel) => {
       const { v, w, label, name } = edge;
+      if (relevanceSink === w) relevanceSource = v;
       graph.setEdge(v, w, label, name);
     });
 
@@ -780,8 +816,9 @@ function splitRelevanceStructures(
     ranks.delete(node);
   });
 
-  ranks.set(relevanceSource, ranks.getRank(relevanceSource)! + 0.5);
+  ranks.set(sink, ranks.getRank(sink)! + 1);
   ranks.set(relevanceSink, ranks.getRank(relevanceSink)! + 0.5);
+  ranks.set(relevanceSource, ranks.getRank(relevanceSource)! + 0.5);
 }
 
 /**
