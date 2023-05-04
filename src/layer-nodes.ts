@@ -822,38 +822,6 @@ function splitRelevanceStructures(
 }
 
 /**
- * Adjusts the rank of `node` and all its successors by `delta`.
- *
- * @param graph A graph object.
- * @param ranks A rank table.
- * @param node A node.
- * @param delta The amount to increment rankings.
- */
-function propegateRankIncrement(
-  graph: Graph,
-  ranks: RankTable,
-  node: NodeId,
-  delta: number
-) {
-  ranks.set(node, ranks.getRank(node)! + delta);
-  const successors = graph.successors(node) || [];
-
-  successors.forEach((successor) => {
-    propegateRankIncrement(graph, ranks, successor, delta);
-  });
-}
-
-export function getNegativeCutValueEdge(tree: Graph) {
-  tree.edges().forEach((edge) => {
-    const cutValue = tree.edge(edge).cutValue;
-
-    if (cutValue < 0) return edge;
-  });
-
-  return undefined;
-}
-
-/**
  * Assigns y-coordinates to all nodes based on their ranks.
  *
  * @param graph A graph object.
