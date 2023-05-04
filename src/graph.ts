@@ -62,7 +62,6 @@ export default class Graph extends graphlibGraph {
     label?: any,
     name?: string
   ) {
-    const sourceNodeLabel = this.node(sourceNode);
     const dummyNodeId = `${targetEdge.v} -> ${targetEdge.w}`;
 
     if (this.hasEdge(sourceNode, dummyNodeId)) {
@@ -70,13 +69,9 @@ export default class Graph extends graphlibGraph {
       return this;
     }
 
-    if (sourceNodeLabel) this.node(sourceNode).isRelevanceSource = true;
-    else this.setNode(sourceNode, { isRelevanceNode: true });
     this.setNode(dummyNodeId, { isRelevanceSink: true });
-
     const edgeLabel =
       label || (this as any)._defaultEdgeLabelFn(sourceNode, dummyNodeId, name);
-
     this.setEdge(sourceNode, dummyNodeId, edgeLabel, name);
 
     return this;
@@ -106,7 +101,6 @@ export default class Graph extends graphlibGraph {
       this.removeNode(_v);
     } else if (this.node(_w)?.isRelevanceSink) {
       this.removeNode(_w);
-      this.node(_v).isRelevanceSource = false;
     }
 
     super.removeEdge(_v, _w, _name);
