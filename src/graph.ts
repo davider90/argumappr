@@ -1,13 +1,20 @@
 import { Edge, Graph as graphlibGraph, GraphOptions } from "graphlib";
-import { appendNodeValues, NodeId } from "./utils";
+import { NodeId } from "./utils";
 
 /**
  * Provides a graph data structure that extents graphlib's and adds support for
  * relevance edges and conjunct nodes.
  */
-class Graph extends graphlibGraph {
+export default class Graph extends graphlibGraph {
+  private _conjunctNodes = new Set<NodeId>();
+  private _relevanceSinks = new Set<NodeId>();
+
+  /**
+   * @param options Booleans for setting the graph as directed (default true),
+   * multigraph (default false) and compound (default true).
+   */
   constructor(options?: GraphOptions) {
-    super(options);
+    super({ compound: true, ...options });
   }
 
   // Overrides erroneous return type.
@@ -15,21 +22,74 @@ class Graph extends graphlibGraph {
     return super.graph();
   }
 
+  conjunctNodes() {
+    return [...this._conjunctNodes.values()];
+  }
+
+  relevanceSinks() {
+    return [...this._relevanceSinks.values()];
+  }
+
+  /**
+   * Creates a new conjunct node based on an existing simple connection or
+   * appends `node` to an existing conjunct node.
+   *
+   * @param node The node to add to the conjunct node.
+   * @param edge The edge going from the conjunct node.
+   * @returns The graph, allowing this to be chained with other functions.
+   */
+  setConjunctNode(node: NodeId, edge: Edge) {
+    let vParentNode = this.parent(edge.v);
+
+    if (!vParentNode) {
+      vParentNode = `-> ${edge.w}`;
+
+      this.setNode(vParentNode, { isConjunctNode: true });
+      this._conjunctNodes.add(vParentNode);
+
+      const edgeLabel = this.edge(edge) || {};
+
+      this.setEdge(vParentNode, edge.w, edgeLabel, edge.name);
+      this.removeEdge(edge);
+    }
+
+    this.setParent(node, vParentNode);
+
+    return this;
+  }
+
+  /**
+   * Creates a new relevance edge or updates the label of an existing one.
+   *
+   * @param sourceNode The source node of the relevance edge.
+   * @param targetEdge The target edge of the relevance edge.
+   * @param label Value to associate with the edge.
+   * @param name Unique name for the edge (for multigraphs).
+   * @returns The graph, allowing this to be chained with other functions.
+   */
   setRelevanceEdge(
     sourceNode: string,
     targetEdge: Edge,
     label?: any,
     name?: string
   ) {
-    const sourceNodeData = {
-      ...this.node(sourceNode),
-      isRelevanceSource: true,
-    };
+    const sourceNodeLabel = this.node(sourceNode);
     const dummyNodeId = `${targetEdge.v} -> ${targetEdge.w}`;
 
-    appendNodeValues(this, sourceNode, sourceNodeData);
+    if (this.hasEdge(sourceNode, dummyNodeId)) {
+      if (label) this.edge(sourceNode, dummyNodeId, name).label = label;
+      return this;
+    }
+
+    if (sourceNodeLabel) this.node(sourceNode).isRelevanceSource = true;
+    else this.setNode(sourceNode, { isRelevanceNode: true });
     this.setNode(dummyNodeId, { isRelevanceSink: true });
-    this.setEdge(sourceNode, dummyNodeId, label, name);
+    this._relevanceSinks.add(dummyNodeId);
+
+    const edgeLabel =
+      label || (this as any)._defaultEdgeLabelFn(sourceNode, dummyNodeId, name);
+
+    this.setEdge(sourceNode, dummyNodeId, edgeLabel, name);
 
     return this;
   }
@@ -40,35 +100,31 @@ class Graph extends graphlibGraph {
    * @returns The graph, allowing this to be chained with other functions.
    */
   override removeEdge(v: NodeId | Edge, ...wAndName: string[]) {
-    if (wAndName.length) {
-      const sourceNode = v as NodeId;
-      const [w, name] = wAndName as [NodeId, string];
+    let _v: NodeId;
+    let _w: NodeId;
+    let _name: string | undefined;
 
-      if (this.node(w)?.isRelevanceNode) this.removeNode(w);
-      else super.removeEdge(sourceNode, w, name);
+    if (wAndName.length) {
+      _v = v as NodeId;
+      [_w, _name] = wAndName;
     } else {
       const edge = v as Edge;
-
-      if (this.node(edge.w)?.isRelevanceNode) this.removeNode(edge.w);
-      else super.removeEdge(edge);
+      _v = edge.v;
+      _w = edge.w;
+      _name = edge.name;
     }
 
-    return this;
-  }
-
-  setConjunctNode(node: NodeId, edge: Edge) {
-    let vParentNode = this.parent(edge.v);
-
-    if (!vParentNode) {
-      vParentNode = `-> ${edge.w}`;
-      this.setNode(vParentNode, { isConjunctNode: true });
+    if (this._conjunctNodes.has(_v)) {
+      this.removeNode(_v);
+      this._conjunctNodes.delete(_v);
+    } else if (this._relevanceSinks.has(_w)) {
+      this.removeNode(_w);
+      this._relevanceSinks.delete(_w);
+      this.node(_v).isRelevanceSource = false;
+    } else {
+      super.removeEdge(_v, _w, _name);
     }
-
-    this.setParent(node, vParentNode);
-    this.setEdge(node, edge.w);
 
     return this;
   }
 }
-
-export default Graph;
