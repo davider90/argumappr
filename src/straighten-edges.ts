@@ -9,7 +9,7 @@ type BiasedGraphTuple = readonly [
 ];
 type Direction = "right down" | "right up" | "left down" | "left up";
 
-const ITERATION_ORDERS: Direction[] = [
+const ITERATION_ORDERS: readonly Direction[] = [
   "right down",
   "right up",
   "left down",
@@ -42,15 +42,15 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
     buildSimpleGraph(graph),
   ];
 
-  biasedGraphs.forEach((graph, graphIndex) => {
+  biasedGraphs.forEach((biasedGraph, graphIndex) => {
     const horizontalDirection = ITERATION_ORDERS[graphIndex].split(" ")[0] as
       | "right"
       | "left";
 
-    markConflicts(graph, graphMatrix);
-    alignVertically(graph, graphMatrix, ITERATION_ORDERS[graphIndex]);
+    markConflicts(biasedGraph, graphMatrix);
+    alignVertically(biasedGraph, graphMatrix, ITERATION_ORDERS[graphIndex]);
     compactHorizontally(
-      graph,
+      biasedGraph,
       graphMatrix,
       horizontalDirection,
       graph.graph().nodesep
