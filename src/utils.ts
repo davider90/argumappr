@@ -131,15 +131,21 @@ export function appendNodeValues(graph: Graph, node: NodeId, value: any) {
  */
 // -----------------------------------------------------------------------------
 
-const GRAPH_DEFAULTS = { ranksep: 50, edgesep: 20, nodesep: 50, rankdir: "tb" };
+const GRAPH_DEFAULTS = {
+  ranksep: 50,
+  edgesep: 20, // Currently unused
+  nodesep: 50,
+  rankdir: "tb", // Currently unused
+  maxrankingloops: 100,
+};
 const NODE_DEFAULTS = { width: 0, height: 0 };
 const EDGE_DEFAULTS = {
   minlen: 1,
-  weight: 1,
-  width: 0,
-  height: 0,
-  labeloffset: 10,
-  labelpos: "r",
+  weight: 1, // Currently unused
+  width: 0, // Currently unused
+  height: 0, // Currently unused
+  labeloffset: 10, // Currently unused
+  labelpos: "r", // Currently unused
 };
 
 /**
