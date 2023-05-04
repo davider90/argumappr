@@ -41,6 +41,18 @@ export class RankTable {
     this.nodeToRank.set(node, rank);
   }
 
+  delete(node: NodeId) {
+    const rankIndex = this.getRank(node);
+
+    if (rankIndex === undefined) return;
+
+    const rank = this.getNodes(rankIndex)!;
+
+    rank.delete(node);
+    if (rank.size === 0) this.rankToNodes.delete(rankIndex);
+    this.nodeToRank.delete(node);
+  }
+
   getRank(node: NodeId) {
     return this.nodeToRank.get(node);
   }
