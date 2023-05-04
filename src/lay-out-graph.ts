@@ -39,35 +39,52 @@ export default function layOutGraph(graph: Graph) {
   const graphMatrix = minimiseCrossings(layoutGraph, ranks); // Step 3
   straightenEdges(layoutGraph, graphMatrix); // Step 4
 
+  restoreEdges(layoutGraph, originalEdges);
   drawBezierCurves(layoutGraph);
+  removeDummyNodes(layoutGraph);
 
-  // Remove dummy nodes
-  const dummyNodes = layoutGraph
-    .nodes()
-    .filter((node) => layoutGraph.node(node)?.isDummyNode);
-  dummyNodes.forEach((node) => {
-    const parent = layoutGraph.predecessors(node)![0];
-    const child = layoutGraph.successors(node)![0];
-    const edgeData = layoutGraph.node(node).edgeData;
-    const inEdgePoints = layoutGraph.edge(parent, node).points;
-    const outEdgePoints = layoutGraph.edge(node, child).points;
-    const newPoints = [inEdgePoints[0], inEdgePoints[2], outEdgePoints[2]];
+  updateInputGraph(graph, layoutGraph);
+}
 
-    layoutGraph.removeNode(node);
-    layoutGraph.setEdge(parent, child, { ...edgeData, points: newPoints });
-  });
-
-  // Restore original edges
+/**
+ * Restores the graph to its original state by reverting the changes made during
+ * cycle removal.
+ *
+ * @param graph A graph object.
+ * @param originalEdges Original edges of the graph.
+ */
+function restoreEdges(graph: Graph, originalEdges: any) {
   originalEdges.deletedLoops.forEach((edge) => {
     const { v, w, label, name } = edge;
-    layoutGraph.setEdge(v, w, label, name);
+    graph.setEdge(v, w, label, name);
   });
   originalEdges.reversedEdges.forEach((edge) => {
     const { v, w, label, name } = edge;
-    const edgeData = layoutGraph.edge(w, v);
-    layoutGraph.removeEdge(w, v);
-    layoutGraph.setEdge(v, w, { ...label, ...edgeData }, name);
+    const edgeData = graph.edge(w, v);
+    graph.removeEdge(w, v);
+    graph.setEdge(v, w, { ...label, ...edgeData }, name);
   });
+}
 
-  updateInputGraph(graph, layoutGraph);
+/**
+ * Removes from the graph the *long edge dummy nodes* produced during crossing
+ * minimisation.
+ *
+ * @param graph A graph object.
+ */
+function removeDummyNodes(graph: Graph) {
+  const dummyNodes = graph
+    .nodes()
+    .filter((node) => graph.node(node)?.isDummyNode);
+  dummyNodes.forEach((node) => {
+    const parent = graph.predecessors(node)![0];
+    const child = graph.successors(node)![0];
+    const edgeData = graph.node(node).edgeData;
+    const inEdgePoints = graph.edge(parent, node).points;
+    const outEdgePoints = graph.edge(node, child).points;
+    const newPoints = [inEdgePoints[0], inEdgePoints[2], outEdgePoints[2]];
+
+    graph.removeNode(node);
+    graph.setEdge(parent, child, { ...edgeData, points: newPoints });
+  });
 }
