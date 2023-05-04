@@ -1,12 +1,6 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
-import {
-  NODE_Y_SPACING,
-  NodeId,
-  RankTable,
-  appendNodeValues,
-  buildSimpleGraph,
-} from "./utils";
+import { NodeId, RankTable, appendNodeValues, buildSimpleGraph } from "./utils";
 
 /**
  * Tries to minimise the number of edge crossings by reordering nodes within
@@ -41,13 +35,15 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
   const constraintGraph = preprocessDataStructures(graph, ranks);
   const graphMatrix = readRankTable(ranks);
   let crossingCount = countTotalCrossings(graph, graphMatrix);
+  let loopCount = 0;
 
-  while (crossingCount > 0) {
+  while (crossingCount > 0 && loopCount < graph.graph().maxcrossingloops) {
+    loopCount++;
+
     sortLayers(graph, constraintGraph, graphMatrix);
 
     const newCrossingCount = countTotalCrossings(graph, graphMatrix);
     if (newCrossingCount >= crossingCount) break;
-
     crossingCount = newCrossingCount;
   }
 
@@ -91,7 +87,7 @@ function splitNontightEdges(graph: Graph, ranks: RankTable) {
 
     for (let rankIndex = vRank + 1; rankIndex < wRank; rankIndex++) {
       const dummyNodeId = `${v}-${w}-${dummyNodeIndex}`;
-      const dummyNodeY = vY + (dummyNodeIndex + 1) * NODE_Y_SPACING;
+      const dummyNodeY = vY + (dummyNodeIndex + 1) * graph.graph().ranksep;
 
       graph.setNode(dummyNodeId, {
         isDummyNode: true,
@@ -130,20 +126,34 @@ function handleConjunctNodes(
     .filter((node) => graph.node(node).isConjunctNode);
 
   conjunctNodes.forEach((node) => {
+    const nodeLabel = graph.node(node);
     const startDummyNodeId = `start-${node}`;
     const endDummyNodeId = `end-${node}`;
-    const children = graph.children(node);
-    const rankNumber = ranks.getRank(children[0])!;
+    const rankNumber = ranks.getRank(node)!;
 
-    graph.setNode(startDummyNodeId, { isConjunctDummyNode: true });
+    graph.setNode(startDummyNodeId, {
+      conjunctNode: { id: node, label: nodeLabel },
+      isConjunctDummyNode: true,
+    });
     graph.setNode(endDummyNodeId, { isConjunctDummyNode: true });
     ranks.set(startDummyNodeId, rankNumber);
     ranks.set(endDummyNodeId, rankNumber);
 
+    const children = graph.children(node);
+    const conjunctEdge = graph.outEdges(node)![0];
+    const conjunctTarget = conjunctEdge.w;
+    const conjunctEdgeLabel = graph.edge(conjunctEdge);
+
     children.forEach((child) => {
+      graph.setEdge(child, conjunctTarget, {
+        ...conjunctEdgeLabel,
+        isConjunctEdge: true,
+      });
       constraintGraph.setEdge(startDummyNodeId, child);
       constraintGraph.setEdge(child, endDummyNodeId);
     });
+
+    graph.removeNode(node);
   });
 }
 
@@ -194,7 +204,7 @@ function readRankTable(ranks: RankTable) {
   while (layer) {
     graphMatrix[rankNumber] = [];
 
-    layer.forEach((_, node) => {
+    layer.forEach((node) => {
       graphMatrix[rankNumber].push(node);
     });
 

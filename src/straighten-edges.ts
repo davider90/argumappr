@@ -1,5 +1,5 @@
 import Graph from "./graph";
-import { NODE_WIDTH, NodeId, buildSimpleGraph } from "./utils";
+import { NodeId, buildSimpleGraph } from "./utils";
 
 type BiasedGraphTuple = readonly [
   leftTopBiasedGraph: Graph,
@@ -15,7 +15,6 @@ const ITERATION_ORDERS: Direction[] = [
   "left down",
   "left up",
 ];
-const NODE_X_SPACING = 100;
 
 /**
  * Assigns all nodes *x*-coordinates according to aesthetic criteria, favoring
@@ -54,7 +53,7 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
       graph,
       graphMatrix,
       horizontalDirection,
-      NODE_WIDTH + NODE_X_SPACING
+      graph.graph().nodesep
     );
   });
 
@@ -318,8 +317,12 @@ function placeBlock(
       if (graph.node(node).classSink === node)
         graph.node(node).classSink = graph.node(previousNodeRoot).classSink;
 
-      const nodeX = graph.node(node).x;
-      const previousNodeX = graph.node(previousNodeRoot).x;
+      const nodeLabel = graph.node(node);
+      const previousNodeLabel = graph.node(previousNodeRoot);
+      const nodeX: number = nodeLabel.x;
+      const previousNodeX: number = previousNodeLabel.x;
+      const nodeWidth: number = nodeLabel.width;
+      const previousNodeWidth: number = previousNodeLabel.width;
       const sign = isLeftBiased ? 1 : -1;
 
       if (
@@ -327,17 +330,21 @@ function placeBlock(
       ) {
         const previousNodeSink = graph.node(previousNodeRoot).classSink;
         const pickValue = isLeftBiased ? Math.min : Math.max;
+        const seperation =
+          nodeX -
+          nodeWidth -
+          (previousNodeX + previousNodeWidth) -
+          minNodeSeperation;
         const xShift = pickValue(
           graph.node(previousNodeSink).xShift,
-          (nodeX - previousNodeX - minNodeSeperation) * sign
+          seperation * sign
         );
         graph.node(previousNodeSink).xShift = xShift;
       } else {
         const pickValue = isLeftBiased ? Math.max : Math.min;
-        const newNodeX = pickValue(
-          nodeX,
-          previousNodeX + minNodeSeperation * sign
-        );
+        const seperation =
+          previousNodeX + previousNodeWidth + minNodeSeperation;
+        const newNodeX = pickValue(nodeX, seperation * sign);
         graph.node(node).x = newNodeX;
       }
     }
@@ -357,16 +364,20 @@ function alignToMinWidthGraph(biasedGraphs: BiasedGraphTuple) {
   let minWidthIndex = -1;
 
   const widthObjects = biasedGraphs.map((graph, graphIndex) => {
-    let minNodeX = Infinity;
-    let maxNodeX = -Infinity;
+    let minGraphX = Infinity;
+    let maxGraphX = -Infinity;
 
     graph.nodes().forEach((node) => {
-      const nodeX = graph.node(node).x;
-      if (nodeX < minNodeX) minNodeX = nodeX;
-      if (nodeX > maxNodeX) maxNodeX = nodeX;
+      const nodeX: number = graph.node(node).x;
+      const nodeWidth: number = graph.node(node).width;
+      const leftBorderX = nodeX - nodeWidth / 2;
+      const rightBorderX = nodeX + nodeWidth / 2;
+
+      if (leftBorderX < minGraphX) minGraphX = leftBorderX;
+      if (rightBorderX > maxGraphX) maxGraphX = rightBorderX;
     });
 
-    const graphWidth = maxNodeX - minNodeX;
+    const graphWidth = maxGraphX - minGraphX;
     if (graphWidth < minWidth) {
       minWidth = graphWidth;
       minWidthIndex = graphIndex;
@@ -374,8 +385,8 @@ function alignToMinWidthGraph(biasedGraphs: BiasedGraphTuple) {
 
     return {
       width: graphWidth,
-      minX: minNodeX,
-      maxX: maxNodeX,
+      minX: minGraphX,
+      maxX: maxGraphX,
     };
   });
 
@@ -410,9 +421,13 @@ function balanceAndAssignValues(graph: Graph, biasedGraphs: BiasedGraphTuple) {
       biasedGraphs[3].node(node).x,
     ].sort((a, b) => a - b);
     const newNodeX = (biasedNodes[1] + biasedNodes[2]) / 2;
-    graph.node(node).x = newNodeX;
-    if (newNodeX < smallestX) smallestX = newNodeX;
-    if (newNodeX > largestX) largestX = newNodeX;
+    const nodeLabel = graph.node(node);
+    nodeLabel.x = newNodeX;
+    const leftBorderX = newNodeX - nodeLabel.width / 2;
+    const rightBorderX = newNodeX + nodeLabel.width / 2;
+
+    if (leftBorderX < smallestX) smallestX = leftBorderX;
+    if (rightBorderX > largestX) largestX = rightBorderX;
   });
 
   graph.graph().width = largestX - smallestX;

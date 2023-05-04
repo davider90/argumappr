@@ -1,6 +1,6 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
-import { EdgeAndLabel, NODE_Y_SPACING, NodeId, RankTable } from "./utils";
+import { EdgeAndLabel, NodeId, RankTable } from "./utils";
 
 /**
  * Assigns all nodes of the input graph to optimal ranks, gives them
@@ -23,8 +23,8 @@ export default function layerNodes(graph: Graph) {
   const conjunctNodes = mergeConjunctNodes(graph);
   const metaRelevanceNodes = mergeRelevanceStructures(graph);
   const treeAndRanks = getFeasibleTree(graph);
-  const { tree } = treeAndRanks;
-  let { ranks } = treeAndRanks;
+  const tree = treeAndRanks.tree;
+  let ranks = treeAndRanks.ranks;
   const edgeIterator = new NegativeCutValueEdgeIterator(tree);
   let loopCount = 0;
 
@@ -830,7 +830,7 @@ function splitRelevanceStructures(
 function setYCoordinates(graph: Graph, ranks: RankTable) {
   graph.nodes().forEach((node) => {
     const rank = ranks.getRank(node)!;
-    const y = rank * NODE_Y_SPACING;
+    const y = rank * graph.graph().ranksep;
 
     graph.node(node).y = y;
   });

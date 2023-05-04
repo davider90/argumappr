@@ -1,11 +1,7 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
 
-export const NODE_Y_SPACING = 325;
-export const NODE_WIDTH = 300;
-
 export type NodeId = string;
-
 export interface EdgeAndLabel extends Edge {
   label?: any;
 }
@@ -137,6 +133,7 @@ const GRAPH_DEFAULTS = {
   nodesep: 50,
   rankdir: "tb", // Currently unused
   maxrankingloops: 100,
+  maxcrossingloops: 100,
 };
 const NODE_DEFAULTS = { width: 0, height: 0 };
 const EDGE_DEFAULTS = {
@@ -188,7 +185,7 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
   const layoutGraphLabel = layoutGraph.graph();
 
   if (inputGraphLabel) {
-    inputGraphLabel.width = layoutGraphLabel.width + NODE_WIDTH;
+    inputGraphLabel.width = layoutGraphLabel.width;
     inputGraphLabel.height = layoutGraphLabel.height;
   }
 }
