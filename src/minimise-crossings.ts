@@ -61,21 +61,22 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
 function preprocessDataStructures(graph: Graph, ranks: RankTable) {
   const constraintGraph = new Graph();
 
-  splitNontightEdges(graph, ranks);
-  handleConjunctNodes(graph, ranks, constraintGraph);
   handleRelevanceStructures(graph, ranks, constraintGraph);
+  handleConjunctNodes(graph, ranks, constraintGraph);
+  splitLongEdges(graph, ranks);
 
   return constraintGraph;
 }
 
 /**
- * Splits non-tight edges into a series of tight edges by inserting dummy nodes
- * at each rank between the source and target of the edge.
+ * Splits long (multi-layer) edges into a series of short (single-layer) edges
+ * by inserting dummy nodes at each rank between the source and target of the
+ * edge.
  *
  * @param graph A graph object.
  * @param ranks A rank table.
  */
-function splitNontightEdges(graph: Graph, ranks: RankTable) {
+function splitLongEdges(graph: Graph, ranks: RankTable) {
   graph.edges().forEach((edge) => {
     const { v, w } = edge;
     const vRank = ranks.getRank(v)!;
@@ -153,6 +154,15 @@ function handleConjunctNodes(
       constraintGraph.setEdge(child, endDummyNodeId);
     });
 
+    const conjunctHasRelevanceEdge = constraintGraph.hasNode(node);
+
+    if (conjunctHasRelevanceEdge) {
+      const relevanceDummySource = constraintGraph.successors(node)![0];
+
+      constraintGraph.setEdge(endDummyNodeId, relevanceDummySource);
+      constraintGraph.removeNode(node);
+    }
+
     graph.removeNode(node);
   });
 }
@@ -175,18 +185,46 @@ function handleRelevanceStructures(
     .filter((node) => graph.node(node).isRelevanceSink);
 
   relevanceSinks.forEach((sink) => {
+    const relevanceSource = graph.predecessors(sink)![0];
+    const relevanceSourceLabel = graph.node(relevanceSource);
+    const dummySource = `start ${relevanceSource}`;
+    const dummySink = `end ${relevanceSource}`;
     const [simpleSource, simpleSink] = sink.split(" -> ");
-    const dummySource = `start-${sink}`;
-    const dummySink = `end-${sink}`;
     const rankNumber = ranks.getRank(simpleSource)!;
 
-    graph.setNode(dummySource, { isRelevanceDummyNode: true });
-    graph.setNode(dummySink, { isRelevanceDummyNode: true });
+    graph.setNode(dummySource, {
+      relevanceNodes: {
+        source: { id: relevanceSource, label: relevanceSourceLabel },
+        sink: { id: sink, label: graph.node(sink) },
+      },
+      y: graph.node(simpleSource).y,
+      width: relevanceSourceLabel.width,
+      isRelevanceDummySource: true,
+    });
+    graph.setNode(dummySink, {
+      y: graph.node(simpleSink).y,
+      width: relevanceSourceLabel.width,
+      isRelevanceDummySink: true,
+    });
     ranks.set(dummySource, rankNumber);
     ranks.set(dummySink, rankNumber + 1);
 
     constraintGraph.setEdge(simpleSource, dummySource);
     constraintGraph.setEdge(simpleSink, dummySink);
+
+    const relevanceSourceInEdges = graph.inEdges(relevanceSource) || [];
+    const relevanceSourceOutEdges = graph.outEdges(relevanceSource) || [];
+
+    relevanceSourceInEdges.forEach((edge) => {
+      graph.setEdge(edge.v, dummySource, graph.edge(edge));
+    });
+
+    for (const edge of relevanceSourceOutEdges) {
+      if (edge.w === sink) continue;
+      graph.setEdge(dummySink, edge.w, graph.edge(edge));
+    }
+
+    graph.removeNode(relevanceSource);
   });
 }
 
