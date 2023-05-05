@@ -66,7 +66,7 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
     );
   });
 
-  alignToMinWidthGraph(biasedGraphs);
+  alignToMinWidthGraph(graph, biasedGraphs);
   balanceAndAssignValues(graph, biasedGraphs, conjunctNodes);
 }
 
@@ -442,18 +442,19 @@ function placeBlock(
  * so that their minimum coordinates agree with it, the two rightmost so that
  * their maximum coordinates agree with it.
  *
+ * @param graph A graph object.
  * @param biasedGraphs Four biased graphs. Must be ordered LT, LB, RT, RB.
  */
-function alignToMinWidthGraph(biasedGraphs: BiasedGraphTuple) {
+function alignToMinWidthGraph(graph: Graph, biasedGraphs: BiasedGraphTuple) {
   let minWidth = Infinity;
   let minWidthIndex = -1;
 
-  const widthObjects = biasedGraphs.map((graph, graphIndex) => {
+  const widthObjects = biasedGraphs.map((biasedGraph, graphIndex) => {
     let minGraphX = Infinity;
     let maxGraphX = -Infinity;
 
-    graph.nodes().forEach((node) => {
-      const nodeX: number = graph.node(node).x;
+    biasedGraph.nodes().forEach((node) => {
+      const nodeX: number = biasedGraph.node(node).x;
       const nodeWidth: number = graph.node(node).width;
       const leftBorderX = nodeX - nodeWidth / 2;
       const rightBorderX = nodeX + nodeWidth / 2;
@@ -477,12 +478,12 @@ function alignToMinWidthGraph(biasedGraphs: BiasedGraphTuple) {
 
   const { minX, maxX } = widthObjects[minWidthIndex];
 
-  biasedGraphs.forEach((graph, graphIndex) => {
+  biasedGraphs.forEach((biasedGraph, graphIndex) => {
     const { minX: graphMinX, maxX: graphMaxX } = widthObjects[graphIndex];
     const xShift = graphIndex < 2 ? minX - graphMinX : maxX - graphMaxX;
 
-    graph.nodes().forEach((node) => {
-      graph.node(node).x += xShift;
+    biasedGraph.nodes().forEach((node) => {
+      biasedGraph.node(node).x += xShift;
     });
   });
 }
