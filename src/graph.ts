@@ -69,7 +69,7 @@ export default class Graph extends graphlibGraph {
       return this;
     }
 
-    this.setNode(dummyNodeId, { isWarrantSink: true });
+    this.setNode(dummyNodeId, { isWarrantSink: true, width: 0, height: 0 });
     const edgeLabel =
       label || (this as any)._defaultEdgeLabelFn(sourceNode, dummyNodeId, name);
     this.setEdge(sourceNode, dummyNodeId, edgeLabel, name);
