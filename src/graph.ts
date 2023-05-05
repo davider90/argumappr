@@ -103,6 +103,14 @@ export default class Graph extends graphlibGraph {
       this.removeNode(_w);
     }
 
+    const possibleRelevanceSink = `${_v} -> ${_w}`;
+
+    if (this.hasNode(possibleRelevanceSink)) {
+      const relevanceSource = this.predecessors(possibleRelevanceSink)![0];
+      this.removeNode(possibleRelevanceSink);
+      this.node(relevanceSource).isRelevanceSource = false;
+    }
+
     super.removeEdge(_v, _w, _name);
 
     return this;
