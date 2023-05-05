@@ -1,14 +1,20 @@
 import Graph from "./graph";
-import { NodeId, buildSimpleGraph } from "./utils";
+import {
+  NodeId,
+  buildSimpleGraph,
+  mergeConjunctNodes,
+  splitConjunctNodes,
+} from "./utils";
 
+type Direction = "right down" | "right up" | "left down" | "left up";
 type BiasedGraphTuple = readonly [
   leftTopBiasedGraph: Graph,
   leftBottomBiasedGraph: Graph,
   rightTopBiasedGraph: Graph,
   rightBottomBiasedGraph: Graph
 ];
-type Direction = "right down" | "right up" | "left down" | "left up";
 
+const REQUIRED_PROPERTIES = { edgeProperties: ["isConflicted"] };
 const ITERATION_ORDERS: readonly Direction[] = [
   "right down",
   "right up",
@@ -35,11 +41,15 @@ const ITERATION_ORDERS: readonly Direction[] = [
  * @param graphMatrix A matrix imposing a layering and ordering on the nodes.
  */
 export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
+  restoreConjunctNodes(graph, graphMatrix);
+  const conjunctNodes = mergeConjunctNodes(graph);
+  markConflicts(graph, graphMatrix);
+
   const biasedGraphs: BiasedGraphTuple = [
-    buildSimpleGraph(graph),
-    buildSimpleGraph(graph),
-    buildSimpleGraph(graph),
-    buildSimpleGraph(graph),
+    buildSimpleGraph(graph, REQUIRED_PROPERTIES),
+    buildSimpleGraph(graph, REQUIRED_PROPERTIES),
+    buildSimpleGraph(graph, REQUIRED_PROPERTIES),
+    buildSimpleGraph(graph, REQUIRED_PROPERTIES),
   ];
 
   biasedGraphs.forEach((biasedGraph, graphIndex) => {
@@ -47,7 +57,6 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
       | "right"
       | "left";
 
-    markConflicts(biasedGraph, graphMatrix);
     alignVertically(biasedGraph, graphMatrix, ITERATION_ORDERS[graphIndex]);
     compactHorizontally(
       biasedGraph,
@@ -58,13 +67,69 @@ export default function straightenEdges(graph: Graph, graphMatrix: NodeId[][]) {
   });
 
   alignToMinWidthGraph(biasedGraphs);
-  balanceAndAssignValues(graph, biasedGraphs);
+  balanceAndAssignValues(graph, biasedGraphs, conjunctNodes);
+}
+
+/**
+ * Restores conjunct nodes to their original, pre-crossing-minimisation state.
+ * Also calculates their width.
+ *
+ * @param graph A graph object.
+ * @param graphMatrix A node matrix.
+ */
+function restoreConjunctNodes(graph: Graph, graphMatrix: NodeId[][]) {
+  const conjunctDummyNodes = graph
+    .nodes()
+    .filter((node) => graph.node(node).isConjunctDummyNode);
+  const startDummyNodes: NodeId[] = [];
+  const endDummyNodes: NodeId[] = [];
+
+  conjunctDummyNodes.forEach((node) => {
+    if (node.slice(0, 5) === "start") startDummyNodes.push(node);
+    else endDummyNodes.push(node);
+  });
+
+  startDummyNodes.forEach((node) => {
+    const { conjunctNode } = graph.node(node);
+    graph.setNode(conjunctNode.id, conjunctNode.label);
+
+    const layerIndex = graph.node(node).y / graph.graph().ranksep;
+    const layer = graphMatrix[layerIndex];
+    const nodeIndex = layer.indexOf(node);
+    let index = nodeIndex + 1;
+    let currentNode = layer[index];
+    let conjunctNodeWidth = 0;
+    const conjunctTarget = conjunctNode.id.substring(3);
+    const { conjunctEdgeLabel } = graph.edge(currentNode, conjunctTarget);
+
+    while (!graph.node(currentNode).isConjunctDummyNode) {
+      graph.removeEdge(currentNode, conjunctTarget);
+      graph.setParent(currentNode, conjunctNode.id);
+
+      const currentNodeWith: number = graph.node(currentNode).width;
+
+      index++;
+      currentNode = layer[index];
+      conjunctNodeWidth += currentNodeWith + graph.graph().nodesep;
+    }
+
+    conjunctNodeWidth -= graph.graph().nodesep;
+
+    graph.node(conjunctNode.id).width = conjunctNodeWidth;
+    graph.setEdge(conjunctNode.id, conjunctTarget, conjunctEdgeLabel);
+    graph.removeNode(node);
+  });
+
+  endDummyNodes.forEach((node) => {
+    graph.removeNode(node);
+  });
 }
 
 /**
  * Marks all *type 1 conflicts*, which are edges crossing long (spanning more
  * than one layer) edges, so that they are resolved in favour of the long edges
- * (i.e., favour straight long edges).
+ * (i.e., favour straight long edges). Also ensures that conjunct nodes are
+ * aligned with their targets.
  *
  * @param graph A graph object.
  * @param graphMatrix A node matrix.
@@ -81,6 +146,15 @@ function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
 
     for (let nodeIndex = 0; nodeIndex < layer.length; nodeIndex++) {
       const node0 = layer[nodeIndex];
+
+      if (graph.node(node0).isConjunctNode) {
+        const targetNode = node0.substring(3);
+
+        for (const edge of graph.outEdges(node0)!) {
+          if (edge.w === targetNode) continue;
+          graph.edge(edge).isConflicted = true;
+        }
+      }
 
       if (nodeIndex === layer.length - 1 || graph.node(node0)?.isDummyNode) {
         let predecessor1Index = graphMatrix[layerIndex].length - 1;
@@ -136,10 +210,14 @@ function alignVertically(
   const isLeftBiased = orderings[0] === "right";
   const isTopBiased = orderings[1] === "down";
 
-  graph.nodes().forEach((node) => {
-    graph.node(node).blockRoot = node;
-    graph.node(node).nextBlockNode = node;
-  });
+  for (const node of graph.nodes()) {
+    const nodeLabel = graph.node(node);
+
+    if (nodeLabel.isConjunctNode) continue;
+
+    nodeLabel.blockRoot = node;
+    nodeLabel.nextBlockNode = node;
+  }
 
   for (
     let layerIndex = isTopBiased ? 0 : graphMatrix.length - 1;
@@ -409,7 +487,11 @@ function alignToMinWidthGraph(biasedGraphs: BiasedGraphTuple) {
  * @param graph A graph object.
  * @param biasedGraphs Four biased graphs.
  */
-function balanceAndAssignValues(graph: Graph, biasedGraphs: BiasedGraphTuple) {
+function balanceAndAssignValues(
+  graph: Graph,
+  biasedGraphs: BiasedGraphTuple,
+  conjunctNodes: NodeId[]
+) {
   let smallestX = Infinity;
   let largestX = -Infinity;
 
@@ -431,4 +513,17 @@ function balanceAndAssignValues(graph: Graph, biasedGraphs: BiasedGraphTuple) {
   });
 
   graph.graph().width = largestX - smallestX;
+
+  splitConjunctNodes(graph, conjunctNodes);
+
+  conjunctNodes.forEach((node) => {
+    let x = graph.node(node).x - graph.node(node).width / 2;
+
+    graph.children(node).forEach((child) => {
+      const childLabel = graph.node(child);
+      const newNodeX = x + childLabel.width / 2;
+      childLabel.x = newNodeX;
+      x = newNodeX + childLabel.width / 2 + graph.graph().nodesep;
+    });
+  });
 }

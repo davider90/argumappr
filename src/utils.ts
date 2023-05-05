@@ -6,6 +6,66 @@ export interface EdgeAndLabel extends Edge {
   label?: any;
 }
 
+interface GraphProperties {
+  graphProperties?: string[];
+  nodeProperties?: string[];
+  edgeProperties?: string[];
+}
+
+/**
+ * Copies the input graph as simply as possible. Only if `properties` is
+ * provided, will labels be considered, and then only specified properties
+ * will be copied.
+ *
+ * @param graph A graph object.
+ * @returns A simple copy of the graph.
+ */
+export function buildSimpleGraph(graph: Graph, properties?: GraphProperties) {
+  const simpleGraph = new Graph();
+
+  if (!properties) {
+    graph.nodes().forEach((node) => {
+      simpleGraph.setNode(node);
+    });
+
+    graph.edges().forEach((edge) => {
+      simpleGraph.setEdge(edge);
+    });
+
+    return simpleGraph;
+  }
+
+  graph.nodes().forEach((node) => {
+    const nodeData = graph.node(node);
+    const simpleNodeData: { [key: string]: any } = {};
+
+    properties.nodeProperties?.forEach((property) => {
+      simpleNodeData[property] = nodeData[property];
+    });
+
+    simpleGraph.setNode(node, simpleNodeData);
+  });
+
+  graph.edges().forEach((edge) => {
+    const edgeData = graph.edge(edge);
+    const simpleEdgeData: { [key: string]: any } = {};
+
+    properties.edgeProperties?.forEach((property) => {
+      simpleEdgeData[property] = edgeData[property];
+    });
+
+    simpleGraph.setEdge(edge, simpleEdgeData);
+  });
+
+  simpleGraph.setGraph({});
+
+  properties.graphProperties?.forEach((property) => {
+    simpleGraph.graph()[property] = graph.graph()[property];
+  });
+
+  return simpleGraph;
+}
+
 /**
  * Provides a mapping between node IDs and their ranks.
  */
@@ -67,43 +127,93 @@ export class RankTable {
 }
 
 /**
- * @private
+ * Merges the subnodes of conjunct nodes into a single node with all inedges
+ * and outedges of the subnodes. Stores away any labels for later restoration.
  *
- * @param graph A graphlib graph object. Must be directed.
- * @returns A simple copy of the graph.
+ * @param graph A graph object.
+ * @returns The conjunct nodes.
  */
-export function buildSimpleGraph(graph: Graph) {
-  const simpleGraph = new Graph({ directed: true });
+export function mergeConjunctNodes(graph: Graph) {
+  const conjunctNodes = graph
+    .nodes()
+    .filter((node) => graph.node(node).isConjunctNode);
 
-  simpleGraph.setDefaultNodeLabel(() => ({}));
+  conjunctNodes.forEach((node) => {
+    const originalEdges: EdgeAndLabel[] = [];
+    const subnodeData: { [node: NodeId]: any } = {};
+    const subnodes = graph.children(node);
 
-  graph.nodes().forEach((nodeId) => {
-    simpleGraph.setNode(nodeId);
+    subnodes.forEach((subnode) => {
+      const inEdges = graph.inEdges(subnode) || [];
+      const outEdges = graph.outEdges(subnode) || [];
+
+      inEdges.forEach((inEdge) => {
+        const { v } = inEdge;
+        const edgeLabel = graph.edge(inEdge);
+
+        graph.setEdge(v, node, edgeLabel);
+        originalEdges.push({ ...inEdge, label: edgeLabel });
+      });
+
+      outEdges.forEach((outEdge) => {
+        const { w } = outEdge;
+        const edgeLabel = graph.edge(outEdge);
+
+        graph.setEdge(node, w, edgeLabel);
+        originalEdges.push({ ...outEdge, label: edgeLabel });
+      });
+
+      subnodeData[subnode] = graph.node(subnode);
+      graph.removeNode(subnode);
+    });
+
+    graph.node(node).subnodeData = subnodeData;
+    graph.node(node).originalEdges = originalEdges;
   });
 
-  graph.edges().forEach((edge) => {
-    simpleGraph.setEdge(edge);
-  });
-
-  return simpleGraph;
+  return conjunctNodes;
 }
 
 /**
- * @private
+ * Splits conjunct nodes by restoring the subnodes and their edges. Provide a
+ * rank table to set the ranks of the subnodes.
  *
- * @param graph A graphlib graph object.
- * @param node A node id.
- * @param value An object containing new node values.
+ * @param graph A graph object.
+ * @param conjunctNodes The merged conjunct nodes.
+ * @param ranks An optional rank table.
  */
-export function appendNodeValues(graph: Graph, node: NodeId, value: any) {
-  const oldNodeValue = graph.node(node);
-  graph.setNode(node, { ...oldNodeValue, ...value });
+export function splitConjunctNodes(
+  graph: Graph,
+  conjunctNodes: NodeId[],
+  ranks?: RankTable
+) {
+  conjunctNodes.forEach((node) => {
+    const { subnodeData, originalEdges } = graph.node(node);
+
+    Object.keys(subnodeData).forEach((subnode) => {
+      graph.setNode(subnode, subnodeData[subnode]);
+      graph.setParent(subnode, node);
+      if (ranks) ranks.set(subnode, ranks.getRank(node)!);
+    });
+
+    originalEdges.forEach((edge: EdgeAndLabel) => {
+      const { v, w, label, name } = edge;
+      graph.setEdge(v, w, label, name);
+    });
+
+    const conjunctTarget = node.substring(3);
+
+    for (const edge of graph.nodeEdges(node)!) {
+      if (edge.w === conjunctTarget) continue;
+      graph.removeEdge(edge);
+    }
+  });
 }
 
 /**
  * The following code block contains code derived from the dagre project, which
  * can be found at https://github.com/dagrejs/dagre. Dagre is licensed under the
- * MIT license. Therefore, the following copyright notice is included:
+ * MIT license. Therefore, the following copyright notice is included.
  *
  * Copyright (c) 2012-2014 Chris Pettitt
  *
@@ -135,7 +245,10 @@ const GRAPH_DEFAULTS = {
   maxrankingloops: 100,
   maxcrossingloops: 100,
 };
-const NODE_DEFAULTS = { width: 0, height: 0 };
+const NODE_DEFAULTS = {
+  width: 0,
+  height: 0, // Currently unused
+};
 const EDGE_DEFAULTS = {
   minlen: 1,
   weight: 1, // Currently unused
@@ -160,13 +273,8 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
       inputLabel.x = layoutLabel.x;
       inputLabel.y = layoutLabel.y;
 
-      inputLabel.width = 300;
-      inputLabel.height = 100;
-
-      if (layoutGraph.children(node).length) {
-        inputLabel.width = layoutLabel.width;
-        inputLabel.height = layoutLabel.height;
-      }
+      inputLabel.width = layoutLabel.width;
+      inputLabel.height = layoutLabel.height;
     }
   });
 
@@ -175,7 +283,8 @@ export function updateInputGraph(inputGraph: Graph, layoutGraph: Graph) {
     const layoutLabel = layoutGraph.edge(edge);
 
     inputLabel.points = layoutLabel.points;
-    if (layoutLabel?.x) {
+
+    if (layoutLabel.x) {
       inputLabel.x = layoutLabel.x;
       inputLabel.y = layoutLabel.y;
     }

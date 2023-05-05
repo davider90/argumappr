@@ -1,6 +1,12 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
-import { EdgeAndLabel, NodeId, RankTable } from "./utils";
+import {
+  EdgeAndLabel,
+  NodeId,
+  RankTable,
+  mergeConjunctNodes,
+  splitConjunctNodes,
+} from "./utils";
 
 /**
  * Assigns all nodes of the input graph to optimal ranks, gives them
@@ -21,7 +27,7 @@ import { EdgeAndLabel, NodeId, RankTable } from "./utils";
  */
 export default function layerNodes(graph: Graph) {
   const conjunctNodes = mergeConjunctNodes(graph);
-  const metaRelevanceNodes = mergeRelevanceStructures(graph);
+  const metaWarrantNodes = mergeWarrantStructures(graph);
   const treeAndRanks = getFeasibleTree(graph);
   const tree = treeAndRanks.tree;
   let ranks = treeAndRanks.ranks;
@@ -43,84 +49,36 @@ export default function layerNodes(graph: Graph) {
 
   normalizeRanks(graph, ranks);
   balanceLayering(graph, ranks);
-  splitRelevanceStructures(graph, ranks, metaRelevanceNodes);
-  splitConjunctNodes(graph, ranks, conjunctNodes);
+  splitWarrantStructures(graph, ranks, metaWarrantNodes);
+  splitConjunctNodes(graph, conjunctNodes, ranks);
   setYCoordinates(graph, ranks);
 
   return ranks;
 }
 
 /**
- * Merges the subnodes of conjunct nodes into a single node with all inedges
- * and outedges of the subnodes. Stores away any labels for later restoration.
- *
- * @param graph A graph object.
- * @returns The conjunct nodes.
- */
-function mergeConjunctNodes(graph: Graph) {
-  const conjunctNodes = graph
-    .nodes()
-    .filter((node) => graph.node(node).isConjunctNode);
-
-  conjunctNodes.forEach((node) => {
-    const originalEdges: EdgeAndLabel[] = [];
-    const subnodeData: { [node: NodeId]: any } = {};
-    const subnodes = graph.children(node);
-
-    subnodes.forEach((subnode) => {
-      const inEdges = graph.inEdges(subnode) || [];
-      const outEdges = graph.outEdges(subnode) || [];
-
-      inEdges.forEach((inEdge) => {
-        const { v } = inEdge;
-        const edgeLabel = graph.edge(inEdge);
-
-        graph.setEdge(v, node, edgeLabel);
-        originalEdges.push({ ...inEdge, label: edgeLabel });
-      });
-
-      outEdges.forEach((outEdge) => {
-        const { w } = outEdge;
-        const edgeLabel = graph.edge(outEdge);
-
-        graph.setEdge(node, w, edgeLabel);
-        originalEdges.push({ ...outEdge, label: edgeLabel });
-      });
-
-      subnodeData[subnode] = graph.node(subnode);
-      graph.removeNode(subnode);
-    });
-
-    graph.node(node).subnodeData = subnodeData;
-    graph.node(node).originalEdges = originalEdges;
-  });
-
-  return conjunctNodes;
-}
-
-/**
- * Merges relevance structures into a single node with all inedges and outedges
+ * Merges warrant structures into a single node with all inedges and outedges
  * of the subnodes. Stores away any labels for later restoration. Returns the
- * meta relevance nodes.
+ * meta warrant nodes.
  *
  * @param graph A grapb object.
- * @returns The meta relevance nodes.
+ * @returns The meta warrant nodes.
  */
-function mergeRelevanceStructures(graph: Graph) {
-  const metaRelevanceNodes: NodeId[] = [];
-  const relevanceSinks = graph
+function mergeWarrantStructures(graph: Graph) {
+  const metaWarrantNodes: NodeId[] = [];
+  const warrantSinks = graph
     .nodes()
-    .filter((node) => graph.node(node).isRelevanceSink);
+    .filter((node) => graph.node(node).isWarrantSink);
 
-  relevanceSinks.forEach((sink) => {
+  warrantSinks.forEach((sink) => {
     const originalEdges: EdgeAndLabel[] = [];
     const subnodeData: { [node: NodeId]: any } = {};
     const incidentNodes = sink.split(" -> ");
-    const relevanceSource = graph.predecessors(sink)![0];
-    const nodes = [sink, ...incidentNodes, relevanceSource];
-    const metaRelevanceNode = `meta ${sink}`;
+    const warrantSource = graph.predecessors(sink)![0];
+    const nodes = [sink, ...incidentNodes, warrantSource];
+    const metaWarrantNode = `meta ${sink}`;
 
-    graph.setNode(metaRelevanceNode, {});
+    graph.setNode(metaWarrantNode, {});
 
     nodes.forEach((node) => {
       const inEdges = graph.inEdges(node) || [];
@@ -132,7 +90,7 @@ function mergeRelevanceStructures(graph: Graph) {
 
         originalEdges.push({ ...inEdge, label: edgeLabel });
         if (nodes.includes(v)) continue;
-        graph.setEdge(v, metaRelevanceNode, edgeLabel);
+        graph.setEdge(v, metaWarrantNode, edgeLabel);
       }
 
       for (const outEdge of outEdges) {
@@ -143,22 +101,22 @@ function mergeRelevanceStructures(graph: Graph) {
 
         if (nodes.includes(w)) continue;
 
-        if (incidentNodes[1] === v || relevanceSource === v)
+        if (incidentNodes[1] === v || warrantSource === v)
           edgeLabel = { ...edgeLabel, minlen: edgeLabel.minlen + 1 };
 
-        graph.setEdge(metaRelevanceNode, w, edgeLabel);
+        graph.setEdge(metaWarrantNode, w, edgeLabel);
       }
 
       subnodeData[node] = graph.node(node);
       graph.removeNode(node);
     });
 
-    graph.node(metaRelevanceNode).subnodeData = subnodeData;
-    graph.node(metaRelevanceNode).originalEdges = originalEdges;
-    metaRelevanceNodes.push(metaRelevanceNode);
+    graph.node(metaWarrantNode).subnodeData = subnodeData;
+    graph.node(metaWarrantNode).originalEdges = originalEdges;
+    metaWarrantNodes.push(metaWarrantNode);
   });
 
-  return metaRelevanceNodes;
+  return metaWarrantNodes;
 }
 
 /**
@@ -739,76 +697,42 @@ function balanceLayering(graph: Graph, ranks: RankTable) {
 }
 
 /**
- * Splits conjunct nodes by restoring the subnodes and their edges.
- *
- * @param graph A graph object.
- * @param ranks A rank table.
- */
-function splitConjunctNodes(
-  graph: Graph,
-  ranks: RankTable,
-  conjunctNodes: NodeId[]
-) {
-  conjunctNodes.forEach((node) => {
-    const { subnodeData, originalEdges } = graph.node(node);
-
-    Object.keys(subnodeData).forEach((subnode) => {
-      graph.setNode(subnode, subnodeData[subnode]);
-      graph.setParent(subnode, node);
-      ranks.set(subnode, ranks.getRank(node)!);
-    });
-
-    originalEdges.forEach((edge: EdgeAndLabel) => {
-      const { v, w, label, name } = edge;
-      graph.setEdge(v, w, label, name);
-    });
-
-    const conjunctTarget = node.substring(3);
-
-    for (const edge of graph.nodeEdges(node)!) {
-      if (edge.w === conjunctTarget) continue;
-      graph.removeEdge(edge);
-    }
-  });
-}
-
-/**
- * Splits relevance structures by restoring the subnodes and their edges. Also
+ * Splits warrant structures by restoring the subnodes and their edges. Also
  * adjusts ranks of any successors.
  *
  * @param graph A graph object.
  * @param ranks A rank table.
- * @param metaRelevanceNodes A list of meta relevance nodes.
+ * @param metaWarrantNodes A list of meta warrant nodes.
  */
-function splitRelevanceStructures(
+function splitWarrantStructures(
   graph: Graph,
   ranks: RankTable,
-  metaRelevanceNodes: NodeId[]
+  metaWarrantNodes: NodeId[]
 ) {
-  if (!metaRelevanceNodes.length) return;
+  if (!metaWarrantNodes.length) return;
 
-  const relevanceStructureNodes: NodeId[] = [];
+  const warrantStructureNodes: NodeId[] = [];
   let sink = "";
-  let relevanceSink = "";
-  let relevanceSource = "";
+  let warrantSink = "";
+  let warrantSource = "";
 
-  metaRelevanceNodes.forEach((node) => {
+  metaWarrantNodes.forEach((node) => {
     const { subnodeData, originalEdges } = graph.node(node);
 
     Object.keys(subnodeData).forEach((subnode) => {
       graph.setNode(subnode, subnodeData[subnode]);
       ranks.set(subnode, ranks.getRank(node)!);
-      relevanceStructureNodes.push(subnode);
+      warrantStructureNodes.push(subnode);
 
-      if (subnodeData[subnode].isRelevanceSink) {
+      if (subnodeData[subnode].isWarrantSink) {
         sink = subnode.split(" -> ")[1];
-        relevanceSink = subnode;
+        warrantSink = subnode;
       }
     });
 
     originalEdges.forEach((edge: EdgeAndLabel) => {
       const { v, w, label, name } = edge;
-      if (relevanceSink === w) relevanceSource = v;
+      if (warrantSink === w) warrantSource = v;
       graph.setEdge(v, w, label, name);
     });
 
@@ -817,8 +741,8 @@ function splitRelevanceStructures(
   });
 
   ranks.set(sink, ranks.getRank(sink)! + 1);
-  ranks.set(relevanceSink, ranks.getRank(relevanceSink)! + 0.5);
-  ranks.set(relevanceSource, ranks.getRank(relevanceSource)! + 0.5);
+  ranks.set(warrantSink, ranks.getRank(warrantSink)! + 0.5);
+  ranks.set(warrantSource, ranks.getRank(warrantSource)! + 0.5);
 }
 
 /**

@@ -3,7 +3,7 @@ import { NodeId } from "./utils";
 
 /**
  * Provides a graph data structure that extents graphlib's and adds support for
- * relevance edges and conjunct nodes.
+ * warrant edges and conjunct nodes.
  */
 export default class Graph extends graphlibGraph {
   /**
@@ -48,15 +48,15 @@ export default class Graph extends graphlibGraph {
   }
 
   /**
-   * Creates a new relevance edge or updates the label of an existing one.
+   * Creates a new warrant edge or updates the label of an existing one.
    *
-   * @param sourceNode The source node of the relevance edge.
-   * @param targetEdge The target edge of the relevance edge.
+   * @param sourceNode The source node of the warrant edge.
+   * @param targetEdge The target edge of the warrant edge.
    * @param label Value to associate with the edge.
    * @param name Unique name for the edge (for multigraphs).
    * @returns The graph, allowing this to be chained with other functions.
    */
-  setRelevanceEdge(
+  setWarrantEdge(
     sourceNode: string,
     targetEdge: Edge,
     label?: any,
@@ -69,7 +69,7 @@ export default class Graph extends graphlibGraph {
       return this;
     }
 
-    this.setNode(dummyNodeId, { isRelevanceSink: true });
+    this.setNode(dummyNodeId, { isWarrantSink: true });
     const edgeLabel =
       label || (this as any)._defaultEdgeLabelFn(sourceNode, dummyNodeId, name);
     this.setEdge(sourceNode, dummyNodeId, edgeLabel, name);
@@ -99,16 +99,16 @@ export default class Graph extends graphlibGraph {
 
     if (this.node(_v)?.isConjunctNode) {
       this.removeNode(_v);
-    } else if (this.node(_w)?.isRelevanceSink) {
+    } else if (this.node(_w)?.isWarrantSink) {
       this.removeNode(_w);
     }
 
-    const possibleRelevanceSink = `${_v} -> ${_w}`;
+    const possibleWarrantSink = `${_v} -> ${_w}`;
 
-    if (this.hasNode(possibleRelevanceSink)) {
-      const relevanceSource = this.predecessors(possibleRelevanceSink)![0];
-      this.removeNode(possibleRelevanceSink);
-      this.node(relevanceSource).isRelevanceSource = false;
+    if (this.hasNode(possibleWarrantSink)) {
+      const warrantSource = this.predecessors(possibleWarrantSink)![0];
+      this.removeNode(possibleWarrantSink);
+      this.node(warrantSource).isWarrantSource = false;
     }
 
     super.removeEdge(_v, _w, _name);

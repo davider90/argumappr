@@ -1,6 +1,6 @@
 import { Edge } from "graphlib";
 import Graph from "./graph";
-import { NodeId, RankTable, appendNodeValues, buildSimpleGraph } from "./utils";
+import { NodeId, RankTable, buildSimpleGraph } from "./utils";
 
 /**
  * Tries to minimise the number of edge crossings by reordering nodes within
@@ -52,7 +52,7 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
 
 /**
  * Splits non-tight edges, and creates and returns a constraint graph based on
- * conjunct nodes and relevance structures.
+ * conjunct nodes and warrant structures.
  *
  * @param graph A graph object.
  * @param ranks A rank table.
@@ -61,11 +61,130 @@ export default function minimiseCrossings(graph: Graph, ranks: RankTable) {
 function preprocessDataStructures(graph: Graph, ranks: RankTable) {
   const constraintGraph = new Graph();
 
-  handleRelevanceStructures(graph, ranks, constraintGraph);
+  handleWarrantStructures(graph, ranks, constraintGraph);
   handleConjunctNodes(graph, ranks, constraintGraph);
   splitLongEdges(graph, ranks);
 
   return constraintGraph;
+}
+
+/**
+ * Creates dummy nodes for warrant structures, spreads them out on the
+ * appropriate layers and constrains them to stay clustered.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @param constraintGraph A constraint graph.
+ */
+function handleWarrantStructures(
+  graph: Graph,
+  ranks: RankTable,
+  constraintGraph: Graph
+) {
+  const warrantSinks = graph
+    .nodes()
+    .filter((node) => graph.node(node).isWarrantSink);
+
+  warrantSinks.forEach((sink) => {
+    const warrantSource = graph.predecessors(sink)![0];
+    const warrantSourceLabel = graph.node(warrantSource);
+    const dummySource = `start ${warrantSource}`;
+    const dummySink = `end ${warrantSource}`;
+    const [simpleSource, simpleSink] = sink.split(" -> ");
+    const rankNumber = ranks.getRank(simpleSource)!;
+
+    graph.setNode(dummySource, {
+      warrantNodes: {
+        source: { id: warrantSource, label: warrantSourceLabel },
+        sink: { id: sink, label: graph.node(sink) },
+      },
+      y: graph.node(simpleSource).y,
+      width: warrantSourceLabel.width,
+      isWarrantDummySource: true,
+    });
+    graph.setNode(dummySink, {
+      y: graph.node(simpleSink).y,
+      width: warrantSourceLabel.width,
+      isWarrantDummySink: true,
+    });
+    ranks.set(dummySource, rankNumber);
+    ranks.set(dummySink, rankNumber + 1);
+
+    constraintGraph.setEdge(simpleSource, dummySource);
+    constraintGraph.setEdge(simpleSink, dummySink);
+
+    const warrantSourceInEdges = graph.inEdges(warrantSource) || [];
+    const warrantSourceOutEdges = graph.outEdges(warrantSource) || [];
+
+    warrantSourceInEdges.forEach((edge) => {
+      graph.setEdge(edge.v, dummySource, graph.edge(edge));
+    });
+
+    for (const edge of warrantSourceOutEdges) {
+      if (edge.w === sink) continue;
+      graph.setEdge(dummySink, edge.w, graph.edge(edge));
+    }
+
+    graph.removeNode(warrantSource);
+  });
+}
+
+/**
+ * Creates two dummy nodes for each conjunct node to act as delimiters within
+ * their layer, and constrains all subnodes to be between them.
+ *
+ * @param graph A graph object.
+ * @param ranks A rank table.
+ * @param constraintGraph A constraint graph.
+ */
+function handleConjunctNodes(
+  graph: Graph,
+  ranks: RankTable,
+  constraintGraph: Graph
+) {
+  const conjunctNodes = graph
+    .nodes()
+    .filter((node) => graph.node(node).isConjunctNode);
+
+  conjunctNodes.forEach((node) => {
+    const nodeLabel = graph.node(node);
+    const startDummyNodeId = `start-${node}`;
+    const endDummyNodeId = `end-${node}`;
+    const rankNumber = ranks.getRank(node)!;
+
+    graph.setNode(startDummyNodeId, {
+      conjunctNode: { id: node, label: nodeLabel },
+      isConjunctDummyNode: true,
+    });
+    graph.setNode(endDummyNodeId, { isConjunctDummyNode: true });
+    ranks.set(startDummyNodeId, rankNumber);
+    ranks.set(endDummyNodeId, rankNumber);
+
+    const children = graph.children(node);
+    const conjunctEdge = graph.outEdges(node)![0];
+    const conjunctTarget = conjunctEdge.w;
+    const conjunctEdgeLabel = graph.edge(conjunctEdge);
+
+    children.forEach((child) => {
+      graph.setEdge(child, conjunctTarget, {
+        conjunctEdgeLabel,
+        isConjunctEdge: true,
+      });
+      constraintGraph.setEdge(startDummyNodeId, child);
+      constraintGraph.setEdge(child, endDummyNodeId);
+    });
+
+    const conjunctHasWarrantEdge = constraintGraph.hasNode(node);
+
+    if (conjunctHasWarrantEdge) {
+      const warrantDummySource = constraintGraph.successors(node)![0];
+
+      constraintGraph.setEdge(endDummyNodeId, warrantDummySource);
+      constraintGraph.removeNode(node);
+    }
+
+    graph.removeNode(node);
+  });
 }
 
 /**
@@ -110,129 +229,10 @@ function splitLongEdges(graph: Graph, ranks: RankTable) {
 }
 
 /**
- * Creates two dummy nodes for each conjunct node to act as delimiters within
- * their layer, and constrains all subnodes to be between them.
- *
- * @param graph A graph object.
- * @param ranks A rank table.
- * @param constraintGraph A constraint graph.
- */
-function handleConjunctNodes(
-  graph: Graph,
-  ranks: RankTable,
-  constraintGraph: Graph
-) {
-  const conjunctNodes = graph
-    .nodes()
-    .filter((node) => graph.node(node).isConjunctNode);
-
-  conjunctNodes.forEach((node) => {
-    const nodeLabel = graph.node(node);
-    const startDummyNodeId = `start-${node}`;
-    const endDummyNodeId = `end-${node}`;
-    const rankNumber = ranks.getRank(node)!;
-
-    graph.setNode(startDummyNodeId, {
-      conjunctNode: { id: node, label: nodeLabel },
-      isConjunctDummyNode: true,
-    });
-    graph.setNode(endDummyNodeId, { isConjunctDummyNode: true });
-    ranks.set(startDummyNodeId, rankNumber);
-    ranks.set(endDummyNodeId, rankNumber);
-
-    const children = graph.children(node);
-    const conjunctEdge = graph.outEdges(node)![0];
-    const conjunctTarget = conjunctEdge.w;
-    const conjunctEdgeLabel = graph.edge(conjunctEdge);
-
-    children.forEach((child) => {
-      graph.setEdge(child, conjunctTarget, {
-        ...conjunctEdgeLabel,
-        isConjunctEdge: true,
-      });
-      constraintGraph.setEdge(startDummyNodeId, child);
-      constraintGraph.setEdge(child, endDummyNodeId);
-    });
-
-    const conjunctHasRelevanceEdge = constraintGraph.hasNode(node);
-
-    if (conjunctHasRelevanceEdge) {
-      const relevanceDummySource = constraintGraph.successors(node)![0];
-
-      constraintGraph.setEdge(endDummyNodeId, relevanceDummySource);
-      constraintGraph.removeNode(node);
-    }
-
-    graph.removeNode(node);
-  });
-}
-
-/**
- * Creates dummy nodes for relevance structures, spreads them out on the
- * appropriate layers and constrains them to stay clustered.
- *
- * @param graph A graph object.
- * @param ranks A rank table.
- * @param constraintGraph A constraint graph.
- */
-function handleRelevanceStructures(
-  graph: Graph,
-  ranks: RankTable,
-  constraintGraph: Graph
-) {
-  const relevanceSinks = graph
-    .nodes()
-    .filter((node) => graph.node(node).isRelevanceSink);
-
-  relevanceSinks.forEach((sink) => {
-    const relevanceSource = graph.predecessors(sink)![0];
-    const relevanceSourceLabel = graph.node(relevanceSource);
-    const dummySource = `start ${relevanceSource}`;
-    const dummySink = `end ${relevanceSource}`;
-    const [simpleSource, simpleSink] = sink.split(" -> ");
-    const rankNumber = ranks.getRank(simpleSource)!;
-
-    graph.setNode(dummySource, {
-      relevanceNodes: {
-        source: { id: relevanceSource, label: relevanceSourceLabel },
-        sink: { id: sink, label: graph.node(sink) },
-      },
-      y: graph.node(simpleSource).y,
-      width: relevanceSourceLabel.width,
-      isRelevanceDummySource: true,
-    });
-    graph.setNode(dummySink, {
-      y: graph.node(simpleSink).y,
-      width: relevanceSourceLabel.width,
-      isRelevanceDummySink: true,
-    });
-    ranks.set(dummySource, rankNumber);
-    ranks.set(dummySink, rankNumber + 1);
-
-    constraintGraph.setEdge(simpleSource, dummySource);
-    constraintGraph.setEdge(simpleSink, dummySink);
-
-    const relevanceSourceInEdges = graph.inEdges(relevanceSource) || [];
-    const relevanceSourceOutEdges = graph.outEdges(relevanceSource) || [];
-
-    relevanceSourceInEdges.forEach((edge) => {
-      graph.setEdge(edge.v, dummySource, graph.edge(edge));
-    });
-
-    for (const edge of relevanceSourceOutEdges) {
-      if (edge.w === sink) continue;
-      graph.setEdge(dummySink, edge.w, graph.edge(edge));
-    }
-
-    graph.removeNode(relevanceSource);
-  });
-}
-
-/**
- * Reads a rank table (mapping) and returns a rank matrix (array of arrays).
+ * Reads a rank table (mapping) and returns a graph matrix (array of arrays).
  *
  * @param ranks A rank table.
- * @returns A rank matrix.
+ * @returns A node matrix.
  */
 function readRankTable(ranks: RankTable) {
   const graphMatrix: NodeId[][] = [];
@@ -427,7 +427,7 @@ function sweepLayer(
     );
     const barycenter = neighborPositionSum / neighbors.length;
 
-    appendNodeValues(mutableConstraintGraph, node, {
+    mutableConstraintGraph.setNode(node, {
       barycenter,
       subnodes: [node],
     });
