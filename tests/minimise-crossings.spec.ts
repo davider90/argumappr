@@ -7,7 +7,7 @@ import minimiseCrossings, {
   countCrossings,
   countTotalCrossings,
 } from "../src/minimise-crossings";
-import { RankTable } from "../src/utils";
+import { RankTable, buildLayoutGraph } from "../src/utils";
 import layerNodes from "../src/layer-nodes";
 
 describe("Minimise Crossings", () => {
@@ -191,7 +191,8 @@ describe("Minimise Crossings", () => {
       ranks.set("c", 1);
       ranks.set("d", 1);
 
-      const graphMatrix = minimiseCrossings(graph, ranks);
+      const layoutGraph = buildLayoutGraph(graph);
+      const graphMatrix = minimiseCrossings(layoutGraph, ranks);
 
       assert.equal(graphMatrix[0][0], "a");
       assert.equal(graphMatrix[0][1], "b");
@@ -241,9 +242,10 @@ describe("Minimise Crossings", () => {
       graph.setEdge("g", "o");
       graph.setEdge("f", "n");
 
-      const ranks = layerNodes(graph);
-      const graphMatrix = minimiseCrossings(graph, ranks);
-      const numberOfCrossings = countTotalCrossings(graph, graphMatrix);
+      const layoutGraph = buildLayoutGraph(graph);
+      const ranks = layerNodes(layoutGraph);
+      const graphMatrix = minimiseCrossings(layoutGraph, ranks);
+      const numberOfCrossings = countTotalCrossings(layoutGraph, graphMatrix);
 
       assert.equal(numberOfCrossings, 0);
     });
@@ -264,9 +266,10 @@ describe("Minimise Crossings", () => {
       graph.setEdge("b", "d");
       graph.setEdge("c", "d");
 
-      const ranks = layerNodes(graph);
-      const graphMatrix = minimiseCrossings(graph, ranks);
-      const numberOfCrossings = countTotalCrossings(graph, graphMatrix);
+      const layoutGraph = buildLayoutGraph(graph);
+      const ranks = layerNodes(layoutGraph);
+      const graphMatrix = minimiseCrossings(layoutGraph, ranks);
+      const numberOfCrossings = countTotalCrossings(layoutGraph, graphMatrix);
 
       assert.equal(numberOfCrossings, 0);
     });

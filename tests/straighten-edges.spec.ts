@@ -3,7 +3,7 @@ import { assert } from "chai";
 
 import straightenEdges from "../src/straighten-edges";
 import Graph from "../src/graph";
-import { NodeId } from "../src/utils";
+import { NodeId, buildLayoutGraph } from "../src/utils";
 
 describe("Straighten Edges", () => {
   it("should be a function", () => {
@@ -12,9 +12,8 @@ describe("Straighten Edges", () => {
 
   it("should not return anything", () => {
     const graph = new Graph();
+    const layoutGraph = buildLayoutGraph(graph);
     const graphMatrix: NodeId[][] = [];
-
-    graph.setGraph({});
 
     const result = straightenEdges(graph, graphMatrix);
 
@@ -24,21 +23,19 @@ describe("Straighten Edges", () => {
   it("should assign x properties to nodes", () => {
     const graph = new Graph();
 
-    graph.setGraph({});
-    graph.setDefaultNodeLabel(() => ({}));
-
     graph.setNode("a");
     graph.setNode("b");
     graph.setNode("c");
     graph.setEdge("a", "b");
     graph.setEdge("b", "c");
 
+    const layoutGraph = buildLayoutGraph(graph);
     const graphMatrix: NodeId[][] = [["a"], ["b"], ["c"]];
 
-    straightenEdges(graph, graphMatrix);
+    straightenEdges(layoutGraph, graphMatrix);
 
     assert.isTrue(
-      graph.nodes().every((node) => graph.node(node).x !== undefined)
+      layoutGraph.nodes().every((node) => !isNaN(layoutGraph.node(node).x))
     );
   });
 

@@ -58,7 +58,7 @@ describe("Node Layer Assignment", () => {
     assert.strictEqual(ranks.getRank("c"), 1);
   });
 
-  it("should handle relevance edges", () => {
+  it("should handle warrant edges", () => {
     const graph = new Graph();
 
     graph.setDefaultNodeLabel(() => ({}));
@@ -68,7 +68,7 @@ describe("Node Layer Assignment", () => {
     graph.setNode("b");
     graph.setNode("c");
     graph.setEdge("a", "c");
-    graph.setRelevanceEdge("b", { v: "a", w: "c" });
+    graph.setWarrantEdge("b", { v: "a", w: "c" });
 
     const layoutGraph = buildLayoutGraph(graph);
     const ranks = layerNodes(layoutGraph);
@@ -78,7 +78,7 @@ describe("Node Layer Assignment", () => {
     assert.strictEqual(ranks.getRank("c"), 1);
   });
 
-  it("should handle relevance edges with conjunct nodes", () => {
+  it("should handle warrant edges with conjunct nodes", () => {
     const graph = new Graph();
 
     graph.setDefaultNodeLabel(() => ({}));
@@ -90,7 +90,7 @@ describe("Node Layer Assignment", () => {
     graph.setNode("d");
     graph.setEdge("a", "d");
     graph.setConjunctNode("b", { v: "a", w: "d" });
-    graph.setRelevanceEdge("c", { v: "-> d", w: "d" });
+    graph.setWarrantEdge("c", { v: "-> d", w: "d" });
 
     const layoutGraph = buildLayoutGraph(graph);
     const ranks = layerNodes(layoutGraph);
