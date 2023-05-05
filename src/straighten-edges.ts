@@ -129,7 +129,7 @@ function restoreConjunctNodes(graph: Graph, graphMatrix: NodeId[][]) {
  * Marks all *type 1 conflicts*, which are edges crossing long (spanning more
  * than one layer) edges, so that they are resolved in favour of the long edges
  * (i.e., favour straight long edges). Also ensures that conjunct nodes are
- * aligned with their targets.
+ * aligned with their targets and that edges targeted by warrants are straight.
  *
  * @param graph A graph object.
  * @param graphMatrix A node matrix.
@@ -152,6 +152,13 @@ function markConflicts(graph: Graph, graphMatrix: NodeId[][]) {
 
         for (const edge of graph.outEdges(node0)!) {
           if (edge.w === targetNode) continue;
+          graph.edge(edge).isConflicted = true;
+        }
+      } else if (graph.node(node0).isWarrantDummySource) {
+        const [targetSource, targetSink] = node0.split(" -> ");
+
+        for (const edge of graph.outEdges(targetSource)!) {
+          if (edge.w === targetSink) continue;
           graph.edge(edge).isConflicted = true;
         }
       }
