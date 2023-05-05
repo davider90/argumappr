@@ -217,14 +217,10 @@ function alignVertically(
   const isLeftBiased = orderings[0] === "right";
   const isTopBiased = orderings[1] === "down";
 
-  for (const node of graph.nodes()) {
-    const nodeLabel = graph.node(node);
-
-    if (nodeLabel.isConjunctNode) continue;
-
-    nodeLabel.blockRoot = node;
-    nodeLabel.nextBlockNode = node;
-  }
+  graph.nodes().forEach((node) => {
+    graph.node(node).blockRoot = node;
+    graph.node(node).nextBlockNode = node;
+  });
 
   for (
     let layerIndex = isTopBiased ? 0 : graphMatrix.length - 1;
