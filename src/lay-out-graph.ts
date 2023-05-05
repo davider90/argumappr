@@ -42,6 +42,7 @@ export default function layOutGraph(graph: Graph) {
   restoreEdges(layoutGraph, originalEdges);
   drawBezierCurves(layoutGraph);
   removeDummyNodes(layoutGraph);
+  finaliseWarrantPositions(layoutGraph);
 
   updateInputGraph(graph, layoutGraph);
 }
@@ -89,5 +90,27 @@ function removeDummyNodes(graph: Graph) {
 
     graph.removeNode(node);
     graph.setEdge(parent, child, { ...edgeData, points: newPoints });
+  });
+}
+
+/**
+ * Removes dummy warrant nodes, re-adds the original warrant nodes and sets them
+ * to their final positions.
+ *
+ * @param graph A graph object.
+ */
+function finaliseWarrantPositions(graph: Graph) {
+  const warrantDummySources = graph
+    .nodes()
+    .filter((node) => graph.node(node).isWarrantDummySource);
+
+  warrantDummySources.forEach((node) => {
+    const nodeLabel = graph.node(node);
+    const { source, sink } = nodeLabel.warrantNodes;
+    const targetSource = sink.id.split(" -> ")[0];
+    const targetEdgeX = graph.node(targetSource).x;
+
+    graph.setNode(source.id, { ...source.label, x: nodeLabel.x });
+    graph.setNode(sink.id, { ...sink.label, x: targetEdgeX });
   });
 }
