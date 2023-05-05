@@ -40,9 +40,9 @@ export default function layOutGraph(graph: Graph) {
   straightenEdges(layoutGraph, graphMatrix); // Step 4
 
   restoreEdges(layoutGraph, originalEdges);
+  finaliseWarrantPositions(layoutGraph);
   drawBezierCurves(layoutGraph);
   removeDummyNodes(layoutGraph);
-  finaliseWarrantPositions(layoutGraph);
 
   updateInputGraph(graph, layoutGraph);
 }
