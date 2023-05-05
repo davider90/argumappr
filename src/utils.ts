@@ -238,16 +238,16 @@ export function splitConjunctNodes(
 // -----------------------------------------------------------------------------
 
 const GRAPH_DEFAULTS = {
-  ranksep: 50,
+  ranksep: 225,
   edgesep: 20, // Currently unused
-  nodesep: 50,
+  nodesep: 100,
   rankdir: "tb", // Currently unused
   maxrankingloops: 100,
   maxcrossingloops: 100,
 };
 const NODE_DEFAULTS = {
-  width: 0,
-  height: 0, // Currently unused
+  width: 300,
+  height: 100, // Currently unused
 };
 const EDGE_DEFAULTS = {
   minlen: 1,
