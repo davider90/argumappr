@@ -15,7 +15,7 @@ describe("Straighten Edges", () => {
     const layoutGraph = buildLayoutGraph(graph);
     const graphMatrix: NodeId[][] = [];
 
-    const result = straightenEdges(graph, graphMatrix);
+    const result = straightenEdges(layoutGraph, graphMatrix);
 
     assert.isUndefined(result);
   });
