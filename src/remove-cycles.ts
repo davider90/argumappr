@@ -1,6 +1,6 @@
 import { Edge } from "graphlib";
-import Graph from "./graph";
-import { buildSimpleGraph, EdgeAndLabel, NodeId } from "./utils";
+import Graph from "./graph.js";
+import { buildSimpleGraph, EdgeAndLabel, NodeId } from "./utils.js";
 
 /**
  * Removes cycles from the input graph by reversing edges and, in case of loops,

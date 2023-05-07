@@ -13,8 +13,9 @@
   "license": "MIT",
   "types": "./lib/cjs/types/index.d.ts",
   "main": "./lib/cjs/index.js",
+  "type": "module",
   "scripts": {
-    "test": "mocha --config ./configs/.mocharc.json",
+    "test": "SET TS_NODE_PROJECT=./configs/tsconfig.esm.json&& mocha --config ./configs/.mocharc.json",
     "clean": "rm -rf ./lib",
     "build": "npm run clean && npm run build:esm && npm run build:cjs",
     "build:esm": "tsc -p ./configs/tsconfig.esm.json && mv lib/esm/index.js lib/esm/index.mjs",

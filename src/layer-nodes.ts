@@ -1,12 +1,12 @@
 import { Edge } from "graphlib";
-import Graph from "./graph";
+import Graph from "./graph.js";
 import {
   EdgeAndLabel,
   NodeId,
   RankTable,
   mergeConjunctNodes,
   splitConjunctNodes,
-} from "./utils";
+} from "./utils.js";
 
 /**
  * Assigns all nodes of the input graph to optimal ranks, gives them

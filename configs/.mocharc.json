@@ -1,6 +1,6 @@
 {
   "extension": ["ts"],
   "spec": "./tests/*.spec.ts",
-  "require": "ts-node/register",
-  "watch-files": ["lib/**/*.ts", "test/**/*.ts"]
+  "loader": "ts-node/esm",
+  "watch-files": ["src/**/*.ts", "tests/**/*.ts"]
 }

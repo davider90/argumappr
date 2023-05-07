@@ -1,16 +1,16 @@
 import "mocha";
 import { assert } from "chai";
 
-import { alg } from "graphlib";
+import graphlib from "graphlib";
 
-import Graph from "../src/graph";
+import Graph from "../src/graph.js";
 import removeCycles, {
   getMaxNode,
   greedilyGetFS,
   handleEdges,
   deleteLoop,
   reverseEdge,
-} from "../src/remove-cycles";
+} from "../src/remove-cycles.js";
 
 describe("Cycle Handling", () => {
   describe("Edge Reversal", () => {
@@ -310,7 +310,7 @@ describe("Cycle Handling", () => {
 
       removeCycles(graph);
 
-      assert.isTrue(alg.isAcyclic(graph));
+      assert.isTrue(graphlib.alg.isAcyclic(graph));
     });
   });
 });

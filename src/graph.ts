@@ -1,5 +1,5 @@
 import { Edge, Graph as graphlibGraph, GraphOptions } from "graphlib";
-import { NodeId } from "./utils";
+import { NodeId } from "./utils.js";
 
 /**
  * Provides a graph data structure that extents graphlib's and adds support for

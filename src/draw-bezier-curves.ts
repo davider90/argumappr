@@ -1,4 +1,4 @@
-import Graph from "./graph";
+import Graph from "./graph.js";
 
 /**
  * @see https://javascript.info/bezier-curve

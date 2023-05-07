@@ -1,9 +1,9 @@
 import "mocha";
 import { assert } from "chai";
 
-import straightenEdges from "../src/straighten-edges";
-import Graph from "../src/graph";
-import { NodeId, buildLayoutGraph } from "../src/utils";
+import straightenEdges from "../src/straighten-edges.js";
+import Graph from "../src/graph.js";
+import { NodeId, buildLayoutGraph } from "../src/utils.js";
 
 describe("Straighten Edges", () => {
   it("should be a function", () => {

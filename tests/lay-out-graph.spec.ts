@@ -1,8 +1,8 @@
 import "mocha";
 import { assert } from "chai";
 
-import layOutGraph from "../src/lay-out-graph";
-import Graph from "../src/graph";
+import layOutGraph from "../src/lay-out-graph.js";
+import Graph from "../src/graph.js";
 
 describe("Layered Graph Drawing", () => {
   it("should be a function", () => {

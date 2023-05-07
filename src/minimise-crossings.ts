@@ -1,6 +1,6 @@
 import { Edge } from "graphlib";
-import Graph from "./graph";
-import { NodeId, RankTable, buildSimpleGraph } from "./utils";
+import Graph from "./graph.js";
+import { NodeId, RankTable, buildSimpleGraph } from "./utils.js";
 
 /**
  * Tries to minimise the number of edge crossings by reordering nodes within

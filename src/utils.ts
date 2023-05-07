@@ -1,5 +1,5 @@
 import { Edge } from "graphlib";
-import Graph from "./graph";
+import Graph from "./graph.js";
 
 export type NodeId = string;
 export interface EdgeAndLabel extends Edge {

@@ -1,10 +1,10 @@
-import Graph from "./graph";
-import removeCycles from "./remove-cycles";
-import layerNodes from "./layer-nodes";
-import minimiseCrossings from "./minimise-crossings";
-import straightenEdges from "./straighten-edges";
-import { buildLayoutGraph, updateInputGraph } from "./utils";
-import drawBezierCurves from "./draw-bezier-curves";
+import Graph from "./graph.js";
+import removeCycles from "./remove-cycles.js";
+import layerNodes from "./layer-nodes.js";
+import minimiseCrossings from "./minimise-crossings.js";
+import straightenEdges from "./straighten-edges.js";
+import { buildLayoutGraph, updateInputGraph } from "./utils.js";
+import drawBezierCurves from "./draw-bezier-curves.js";
 
 /**
  * Produces a hierarchical layout for the input graph, which must be directed.

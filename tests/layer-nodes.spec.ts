@@ -1,9 +1,9 @@
 import "mocha";
 import { assert } from "chai";
 
-import Graph from "../src/graph";
-import layerNodes from "../src/layer-nodes";
-import { RankTable, buildLayoutGraph } from "../src/utils";
+import Graph from "../src/graph.js";
+import layerNodes from "../src/layer-nodes.js";
+import { RankTable, buildLayoutGraph } from "../src/utils.js";
 
 describe("Node Layer Assignment", () => {
   it("should be a function", () => {

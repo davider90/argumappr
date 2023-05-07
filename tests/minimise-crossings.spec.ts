@@ -1,14 +1,14 @@
 import "mocha";
 import { assert } from "chai";
 
-import Graph from "../src/graph";
+import Graph from "../src/graph.js";
 
 import minimiseCrossings, {
   countCrossings,
   countTotalCrossings,
-} from "../src/minimise-crossings";
-import { RankTable, buildLayoutGraph } from "../src/utils";
-import layerNodes from "../src/layer-nodes";
+} from "../src/minimise-crossings.js";
+import { RankTable, buildLayoutGraph } from "../src/utils.js";
+import layerNodes from "../src/layer-nodes.js";
 
 describe("Minimise Crossings", () => {
   describe("Count Crossings", () => {
